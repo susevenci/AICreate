@@ -43,9 +43,11 @@ app/                     服务端与前端（零依赖）
   lib/views.mjs          视图入口（barrel），实现在 lib/views/ 下按页面分组
   lib/views/shared.mjs   布局、导航、通用组件与格式化助手
   lib/views/home.mjs     首页
-  lib/views/content.mjs  选题 / 稿件 / 拆解 / 资产
+  lib/views/content.mjs  选题 / 稿件
+  lib/views/assets.mjs   拆解 / 资产
   lib/views/review.mjs   收支 / 作品
-  lib/views/tools.mjs    助手 / 计划 / 对标 / 画板 / 设置
+  lib/views/tools.mjs    助手 / 计划 / 对标 / 画板
+  lib/views/settings.mjs 设置
   web/                   三个静态资源：styles.css / app.js / focus.js
   skills/                42 个内置 Skill（29 动作型 + 13 AI 型，随产品发布）
   scripts/verify.mjs     端到端验收
