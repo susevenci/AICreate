@@ -50,6 +50,8 @@ const NAME_PREFIX = {
   analysis: '拆解',
   asset: '资产',
   source: '对标',
+  work: '作品',
+  metric: '指标',
 };
 
 /** 允许的业务类型（与 _schema.md 第 3 节一致） */

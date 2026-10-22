@@ -474,7 +474,9 @@ function linkName(value) {
   return String(value || '')
     .replace(/^\[\[/, '')
     .replace(/\]\]$/, '')
-    .replace(/\.md$/, '');
+    .replace(/\.md$/, '')
+    .split('/')
+    .pop();
 }
 
 async function upsertMetric({ work, date, platform, views, inquiries, deals, source }) {
