@@ -466,8 +466,8 @@ function parseMetricCsv(text) {
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
-    .filter((line) => !/^(work|作品)/i.test(line))
-    .map((line) => line.split(',').map((cell) => cell.trim()));
+    .map((line) => line.split(',').map((cell) => cell.trim()))
+    .filter((cells) => !/^(work|作品)$/i.test(cells[0] || ''));
 }
 
 function linkName(value) {

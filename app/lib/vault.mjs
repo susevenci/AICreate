@@ -66,6 +66,8 @@ export const TYPES = [
   'analysis',
   'asset',
   'source',
+  'work',
+  'metric',
   'skill',
 ];
 

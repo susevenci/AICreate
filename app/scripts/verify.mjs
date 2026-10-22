@@ -434,6 +434,68 @@ async function main() {
     `path=${fromNote.json?.data?.path}`
   );
 
+  // 7.8 作品与指标（M3）
+  const day = new Date().toISOString().slice(0, 10);
+  const badWork = await skill('work.create', { title: '缺日期作品', draft: '稿件-封面点击率的三个误区-2026-10-22' });
+  check('作品缺发布日期被拒绝', badWork.status === 400, `status=${badWork.status}`);
+
+  const work = await skill('work.create', {
+    title: '跨平台测试作品',
+    draft: '稿件-封面点击率的三个误区-2026-10-22',
+    publishDate: day,
+    platforms: '小红书, 公众号',
+  });
+  check('work.create 登记成功', work.status === 200, `status=${work.status}`);
+  const workPath = work.json?.data?.path;
+  check('作品落 08-作品/作品', Boolean(workPath) && workPath.startsWith('08-作品/作品/'), `path=${workPath}`);
+  const workRaw = workPath ? await fs.readFile(path.join(VAULT, workPath), 'utf8') : '';
+  check('跨平台只记一条且平台成组', workRaw.includes('platforms:') && workRaw.includes('小红书'));
+
+  const metric1 = await skill('metric.upsert', {
+    work: workPath || '作品-跨平台测试作品',
+    date: day,
+    platform: '小红书',
+    views: 3200,
+    inquiries: 5,
+    deals: 1,
+  });
+  check('metric.upsert 新建指标', metric1.status === 200 && metric1.json?.data?.updated === false, `status=${metric1.status}`);
+
+  const metric2 = await skill('metric.upsert', {
+    work: workPath || '作品-跨平台测试作品',
+    date: day,
+    platform: '小红书',
+    views: 4000,
+    inquiries: 6,
+    deals: 2,
+  });
+  check('同键指标走更新不新增', metric2.status === 200 && metric2.json?.data?.updated === true, `updated=${metric2.json?.data?.updated}`);
+
+  const metricPage = await get('/works');
+  check('作品页 200', metricPage.status === 200);
+  check('作品页显示作品', metricPage.text.includes('跨平台测试作品'));
+  check('作品页口径说明', metricPage.text.includes('按记录数，不去重'));
+  check('作品页显示本月发布', metricPage.text.includes('本月发布'));
+
+  const imported = await skill('metric.import', {
+    csv: `work,date,platform,views,inquiries,deals\n作品-跨平台测试作品,${day},公众号,1200,2,1\n作品-跨平台测试作品,,公众号,100,0,0`,
+  });
+  check(
+    'CSV 导入新建一行、跳过一行',
+    imported.status === 200 && imported.json?.data?.created === 1 && imported.json?.data?.skipped === 1,
+    `created=${imported.json?.data?.created} skipped=${imported.json?.data?.skipped}`
+  );
+  const importedPage = await get('/works?imported=1&created=1&updated=0&skipped=1');
+  check('导入报告可见', importedPage.status === 200 && importedPage.text.includes('导入完成'));
+  check('指标来源标注为 csv', importedPage.text.includes('csv'));
+
+  const review = await skill('review.period', { period: '2026-10', summary: '发布 1 篇，成交 2 笔' });
+  check(
+    '复盘 Skill 渲染成功',
+    review.status === 200 && review.json?.data?.kind === 'ai' && String(review.json?.data?.prompt).includes('成交是记录数'),
+    `status=${review.status}`
+  );
+
   // 8. Skill 注册表
   const skillsPage = await get('/skills');
   check('助手页返回 200', skillsPage.status === 200);
