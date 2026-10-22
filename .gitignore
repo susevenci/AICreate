@@ -15,3 +15,6 @@ AI内容工作台分享.md
 # 系统文件
 .DS_Store
 Thumbs.db
+
+# ������Կ
+app/.env.local

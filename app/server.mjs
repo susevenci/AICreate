@@ -8,6 +8,7 @@
  */
 
 import http from 'node:http';
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -59,6 +60,17 @@ import {
 } from './lib/views.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+
+// 读取 app/.env.local（若存在），不覆盖已有环境变量；密钥不进 vault、不进 Git
+try {
+  const envText = fsSync.readFileSync(path.join(HERE, '.env.local'), 'utf8');
+  for (const line of envText.split(/\r?\n/)) {
+    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/.exec(line);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+} catch {
+  // 没有 .env.local 就走系统环境变量
+}
 const WEB_ROOT = path.join(HERE, 'web');
 const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || '127.0.0.1';

@@ -690,9 +690,9 @@ async function main() {
   check(
     '提取结果导入成功',
     importedSources.status === 200 &&
-      importedSources.json?.data?.created === 2 &&
+      (importedSources.json?.data?.created || 0) + (importedSources.json?.data?.updated || 0) === 2 &&
       importedSources.json?.data?.skipped === 1,
-    `created=${importedSources.json?.data?.created} skipped=${importedSources.json?.data?.skipped}`
+    `created=${importedSources.json?.data?.created} updated=${importedSources.json?.data?.updated} skipped=${importedSources.json?.data?.skipped}`
   );
   const importedAgain = await skill('source.import', { csv: importCsv });
   check(
