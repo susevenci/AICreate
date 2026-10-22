@@ -1,0 +1,17 @@
+# 依赖与构建产物
+node_modules/
+.workbench/
+*.log
+
+# 本地数据与软删除
+vault/.trash/
+.tmp-vault-*/
+
+# 内部开发痕迹，不入公开仓库
+.ai-memory/
+requests.txt
+AI内容工作台分享.md
+
+# 系统文件
+.DS_Store
+Thumbs.db
