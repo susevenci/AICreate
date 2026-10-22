@@ -590,6 +590,14 @@ async function main() {
   check('异常值计数≥1', /爆款内容异常值[\s\S]{0,200}?[1-9]\d* 条/.test(bench.text));
   check('页面标注手工录入', bench.text.includes('手工录入'));
 
+  const refreshed = await skill('benchmark.refresh', {});
+  const benchRefreshed = await get('/benchmark');
+  check(
+    '对标刷新记录更新时间',
+    refreshed.status === 200 && benchRefreshed.text.includes('数据更新于：' + refreshed.json?.data?.lastRefresh),
+    `last=${refreshed.json?.data?.lastRefresh}`
+  );
+
   const board = await skill('board.create', { title: '封面结构拆解' });
   check(
     '画板创建成功',
@@ -675,7 +683,7 @@ async function main() {
   const skillsPage = await get('/skills');
   check('助手页返回 200', skillsPage.status === 200);
   const cards = (skillsPage.text.match(/class="card skill-card"/g) || []).length;
-  check('助手页列出 29 个动作型 Skill', cards === 29, `count=${cards}`);
+  check('助手页列出 30 个动作型 Skill', cards === 30, `count=${cards}`);
   check('助手页区分 AI 型与动作型', skillsPage.text.includes('AI 指令型') && skillsPage.text.includes('动作型'));
 
   const missing = await skill('topic.evaluate', { title: '只填了一个' });

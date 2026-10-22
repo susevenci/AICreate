@@ -142,7 +142,7 @@ export function renderPlan({ todayTasks, unscheduled, overdue, today }) {
 
 /* ---------------------------------------------------------------- 发布与经营（M3） */
 
-export function renderBenchmark({ bloggers, sources, counts, thresholds }) {
+export function renderBenchmark({ bloggers, sources, counts, thresholds, lastRefresh = '' }) {
   const sourceRows = sources.length
     ? sources
         .map(
@@ -158,7 +158,9 @@ export function renderBenchmark({ bloggers, sources, counts, thresholds }) {
     : '<tr><td colspan="7" class="empty">暂无对标作品。下方录入第一条。</td></tr>';
 
   return `
-  <section class="hero"><div><h1>对标与热点</h1><p class="muted">当前为手工录入（L0），未接入抓取。互动突出只是研究线索，还要判断是否适合自己。</p></div></section>
+  <section class="hero"><div><h1>对标与热点</h1><p class="muted">当前为手工录入（L0），未接入抓取。数据更新于：${escapeHtml(lastRefresh || '尚未刷新')}</p></div>
+    <div class="hero-actions"><button class="primary" data-skill="benchmark.refresh">更新动态</button></div>
+  </section>
   <section class="stats">
     ${statCard('监控博主', counts.bloggers + ' 位', 'blogger 笔记数')}
     ${statCard('低粉爆款', counts.lowFan + ' 条', `粉丝 < ${thresholds.lowFan} 且互动率 > ${thresholds.engagement}`)}

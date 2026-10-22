@@ -175,6 +175,7 @@ async function loadBenchmarkPage(config) {
     bloggers,
     sources,
     counts,
+    lastRefresh: config.lastRefresh || '',
     thresholds: {
       lowFan: config.lowFanThreshold,
       engagement: config.engagementThreshold,
@@ -1029,6 +1030,13 @@ const ACTIONS = {
     const next = mode === 'full' ? [] : FREE_DISABLED;
     await updateConfig({ disabledModules: next }, `2026-10-22 | 人工 | 切换${mode === 'full' ? '完整版' : '免费版'}`);
     return { disabledModules: next, mode };
+  },
+
+  'benchmark.refresh': async () => {
+    const config = await readConfig();
+    const line = `${today()} | 人工 | 刷新对标数据（L0 手工录入，无抓取）`;
+    await updateConfig({ lastRefresh: today() }, line);
+    return { lastRefresh: today(), mode: 'manual', previous: config.data.lastRefresh || '' };
   },
 
   'focus.log': async (params) => {
