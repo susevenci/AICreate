@@ -25,8 +25,19 @@ export const DIRS = {
   task: '09-计划/任务',
   inbox: '01-收件箱',
   note: '02-知识库',
+  analysis: '05-拆解',
+  asset: '06-资产',
+  source: '03-对标/作品',
   work: '08-作品/作品',
   metric: '08-作品/指标',
+};
+
+/** 资产按 assetType 落子目录 */
+export const ASSET_DIRS = {
+  angle: '06-资产/选题角度',
+  structure: '06-资产/文案结构',
+  opening: '06-资产/开场白',
+  title: '06-资产/标题',
 };
 
 const NAME_PREFIX = {
@@ -36,10 +47,27 @@ const NAME_PREFIX = {
   task: '任务',
   note: '',
   inbox: '',
+  analysis: '拆解',
+  asset: '资产',
+  source: '对标',
 };
 
 /** 允许的业务类型（与 _schema.md 第 3 节一致） */
-export const TYPES = ['config', 'schema', 'page', 'topic', 'draft', 'ledger', 'task', 'inbox', 'note', 'skill'];
+export const TYPES = [
+  'config',
+  'schema',
+  'page',
+  'topic',
+  'draft',
+  'ledger',
+  'task',
+  'inbox',
+  'note',
+  'analysis',
+  'asset',
+  'source',
+  'skill',
+];
 
 export const ENUMS = {
   'topic.status': ['backlog', 'researching', 'selected', 'in-production', 'archived'],
@@ -51,6 +79,9 @@ export const ENUMS = {
   'task.priority': ['high', 'normal', 'low'],
   'task.source': ['manual', 'ai'],
   'inbox.status': ['raw', 'processing', 'done'],
+  'analysis.stage': ['intake', 'verify', 'result'],
+  'asset.assetType': ['angle', 'structure', 'opening', 'title'],
+  'source.sourceLevel': ['L0', 'L1'],
 };
 
 /** 必填字段（_schema.md 第 4 节） */
@@ -61,6 +92,9 @@ export const REQUIRED = {
   task: ['type', 'status', 'priority', 'source', 'createdAt'],
   inbox: ['type', 'status', 'capturedAt'],
   note: ['type', 'createdAt', 'updatedAt'],
+  analysis: ['type', 'stage', 'sources', 'createdAt', 'updatedAt'],
+  asset: ['type', 'assetType', 'name', 'problem', 'why', 'createdAt'],
+  source: ['type', 'platform', 'sourceLevel', 'createdAt'],
 };
 
 // ---------------------------------------------------------------- 基础工具
@@ -300,8 +334,8 @@ async function findByName(fileName) {
 // ---------------------------------------------------------------- 写
 
 /** 创建笔记：自动编号防重名，落盘后返回最终路径 */
-export async function createNote({ type, title, data, body, dateStr }) {
-  const dir = DIRS[type];
+export async function createNote({ type, title, data, body, dateStr, dir: dirOverride }) {
+  const dir = dirOverride || DIRS[type];
   if (!dir) throw new HttpError(400, 'type_invalid', `不支持创建的类型：${type}`);
 
   const cleanTitle = sanitizeName(title);

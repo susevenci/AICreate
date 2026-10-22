@@ -1,6 +1,6 @@
 ---
 type: schema
-version: 1.0.2
+version: 1.1.0
 updatedAt: 2026-10-22
 ---
 
@@ -41,7 +41,7 @@ updatedAt: 2026-10-22
 ## 3. 类型枚举
 
 ```
-config | schema | page | topic | draft | ledger | task | inbox | note | skill
+config | schema | page | topic | draft | ledger | task | inbox | note | analysis | asset | source | skill
 ```
 
 M0 实现前 9 类；`page` 用于视图层笔记（只放查询），`note` 用于 `02-知识库/` 的长期笔记，`skill` 用于 Skill 元数据索引（主体在 `app/skills/`）。
@@ -174,6 +174,54 @@ M0 实现前 9 类；`page` 用于视图层笔记（只放查询），`note` 用
 | tags | list | 否 | — |
 
 文件名直接用标题，不加类型前缀与日期后缀；同名时追加 `-2`。正文不要求固定结构，由收件箱转入时保持原文。
+
+### 4.9 analysis（`05-拆解/`）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| type | string | 是 | `analysis` |
+| stage | enum | 是 | `intake` / `verify` / `result`（对应界面 1-2-3 步） |
+| sources | list | 是 | 被拆解作品或素材的 wikilink，至少 1 条 |
+| highlights | list | 否 | 亮点 |
+| weaknesses | list | 否 | 不足 |
+| borrowable | list | 否 | 可借鉴做法 |
+| patterns | list | 否 | 横向共同规律 |
+| assets | list | 否 | 沉淀出的资产 wikilink |
+| createdAt | date | 是 | — |
+| updatedAt | date | 是 | — |
+
+正文固定四节：`## 原文`、`## 单篇结论`、`## 横向比较`、`## 可借鉴做法`。状态只允许 `intake → verify → result` 单向推进。
+
+### 4.10 asset（`06-资产/{子目录}/`）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| type | string | 是 | `asset` |
+| assetType | enum | 是 | `angle` / `structure` / `opening` / `title`，决定存放子目录 |
+| name | string | 是 | 资产名称 |
+| problem | string | 是 | 适合解决什么内容问题 |
+| why | string | 是 | 用户为什么会关心 |
+| skeleton | string | 否 | 结构或模板正文 |
+| example | string | 否 | 原文示例 |
+| source | link | 否 | 来源拆解 `[[...]]` |
+| createdAt | date | 是 | — |
+
+子目录映射：`angle→06-资产/选题角度`、`structure→06-资产/文案结构`、`opening→06-资产/开场白`、`title→06-资产/标题`。正文固定两节：`## 用法`、`## 示例`。
+
+### 4.11 source（`03-对标/作品/`）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| type | string | 是 | `source` |
+| platform | string | 是 | 平台名 |
+| blogger | link | 否 | 所属博主 |
+| publishedAt | date | 否 | 发布日期 |
+| views / likes / comments / shares | number | 否 | 互动数据 |
+| rawPath | string | 否 | 正文文件路径或链接 |
+| sourceLevel | enum | 是 | `L0`（手动）/ `L1`（后台导出），M1-M5 不允许更高等级 |
+| createdAt | date | 是 | — |
+
+`engagement` 为派生字段，不落盘，由查询现算。
 
 ---
 

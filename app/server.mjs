@@ -21,6 +21,7 @@ import {
   listRecentFiles,
   readNote,
   trashNote,
+  ASSET_DIRS,
   readConfig,
   createNote,
   updateFields,
@@ -38,6 +39,8 @@ import {
   renderTopics,
   renderDrafts,
   renderLedger,
+  renderAnalysis,
+  renderAssets,
   renderSkills,
   renderSettings,
   parseChanges,
@@ -88,6 +91,16 @@ async function loadLedgerPage(error) {
   const ledgers = await listByType('ledger');
   const ym = today().slice(0, 7);
   return { ledgers, ym, summary: ledgerSummary(ledgers, ym), error };
+}
+
+async function loadAnalysisPage(error) {
+  const analyses = await listByType('analysis');
+  return { analyses, error };
+}
+
+async function loadAssetsPage(error) {
+  const assets = await listByType('asset');
+  return { assets, error };
 }
 
 // ---------------------------------------------------------------- HTTP 工具
@@ -223,6 +236,39 @@ function draftBody({ title, audience }) {
     '- [ ] 标题含具体收益或冲突',
     '- [ ] 首段给出结论',
     '- [ ] 引用与数据已核对来源',
+    '',
+  ].join('\n');
+}
+
+function analysisBody(title, sourcesRaw) {
+  return [
+    `# ${title}`,
+    '',
+    '## 原文',
+    '',
+    sourcesRaw,
+    '',
+    '## 单篇结论',
+    '',
+    '## 横向比较',
+    '',
+    '## 可借鉴做法',
+    '',
+  ].join('\n');
+}
+
+function assetBody({ name, problem, why, skeleton }) {
+  return [
+    `# ${name}`,
+    '',
+    '## 用法',
+    '',
+    `- 适合解决：${problem}`,
+    `- 用户为什么关心：${why}`,
+    '',
+    '## 示例',
+    '',
+    skeleton || '待补充',
     '',
   ].join('\n');
 }
@@ -500,6 +546,72 @@ const ACTIONS = {
     await trashNote(source);
     return { path: created.path, target, movedFrom: source };
   },
+
+  'analysis.create': async (params) => {
+    const title = String(params.title || '').trim() || '未命名拆解';
+    const sourcesRaw = String(params.sources || '').trim();
+    const sources = sourcesRaw
+      .split(/[\n,，]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (sources.length === 0) throw new HttpError(400, 'field_required', '至少填写一条素材');
+    const data = {
+      type: 'analysis',
+      stage: 'intake',
+      sources,
+      highlights: [],
+      weaknesses: [],
+      borrowable: [],
+      patterns: [],
+      assets: [],
+      createdAt: today(),
+      updatedAt: today(),
+    };
+    const created = await createNote({ type: 'analysis', title, data, body: analysisBody(title, sourcesRaw) });
+    return { path: created.path, stage: 'intake' };
+  },
+
+  'analysis.advance': async (params) => {
+    const note = await readNote(String(params.path || ''));
+    if (note.data.type !== 'analysis') throw new HttpError(400, 'type_invalid', '不是拆解笔记');
+    const order = ['intake', 'verify', 'result'];
+    const idx = order.indexOf(String(note.data.stage || 'intake'));
+    const next = order[Math.min(idx + 1, order.length - 1)];
+    const updated = await updateFields(note.path, { stage: next, updatedAt: today() });
+    return { path: updated.path, stage: next };
+  },
+
+  'asset.create': async (params) => {
+    const assetType = String(params.assetType || 'angle');
+    const dir = ASSET_DIRS[assetType];
+    if (!dir) throw new HttpError(400, 'enum_invalid', `非法资产类型：${assetType}`);
+    const name = String(params.name || '').trim();
+    const problem = String(params.problem || '').trim();
+    const why = String(params.why || '').trim();
+    const skeleton = String(params.skeleton || '').trim();
+    const source = String(params.source || '').trim();
+    const data = {
+      type: 'asset',
+      assetType,
+      name,
+      problem,
+      why,
+      skeleton,
+      example: '',
+      source,
+      createdAt: today(),
+    };
+    const { ok: valid, errors } = validate('asset', data);
+    if (!valid) throw new HttpError(400, 'validation_failed', '字段校验未通过', errors);
+    const created = await createNote({
+      type: 'asset',
+      title: name,
+      data,
+      dir,
+      body: assetBody({ name, problem, why, skeleton }),
+    });
+    return { path: created.path, assetType };
+  },
 };
 
 async function route(req, res) {
@@ -536,6 +648,17 @@ async function route(req, res) {
       case '/ledger': {
         const data = await loadLedgerPage(url.searchParams.get('error'));
         return sendHtml(res, layout({ config, active: 'ledger', title: '收支', content: renderLedger(data) }));
+      }
+      case '/analysis': {
+        const data = await loadAnalysisPage(url.searchParams.get('error'));
+        return sendHtml(
+          res,
+          layout({ config, active: 'analysis', title: '拆解与沉淀', content: renderAnalysis(data) })
+        );
+      }
+      case '/assets': {
+        const data = await loadAssetsPage(url.searchParams.get('error'));
+        return sendHtml(res, layout({ config, active: 'assets', title: '资产库', content: renderAssets(data) }));
       }
       case '/skills': {
         const skills = await listSkills();

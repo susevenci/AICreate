@@ -3,6 +3,26 @@
 版本号与里程碑对应：M0 = v0.1.0，M1 = v0.2.0，依次递增，M6 收口为 v0.7.0，M7 完成后为 v1.0.0。
 每个版本发布前必须满足：`node app/scripts/verify.mjs` 全绿 + 浏览器验收 + 重启后数据留存。
 
+## [v0.2.0] - 2026-10-22
+
+### 里程碑
+
+M1 输入与拆解。
+
+### 新增
+
+- 契约：`analysis` / `asset` / `source` 三类实体，schema 1.1.0
+- 页面：`/analysis` 拆解三步（放入素材 → 核对原文 → 拆解结果）、`/assets` 资产库（四库统计 + 明细 + 入库表单）
+- Skill：`analysis.create`、`analysis.advance`、`asset.create`、`source.ingest`、`teardown.analyze`、`teardown.compare`
+- Dataview：`vault/00-工作台/拆解与沉淀.md`（三步进度 + 四库统计 + 资产明细）
+- 模板：`T-拆解.md`、`T-资产.md`
+- 资产按 `assetType` 落四个子目录，支持来源回链
+
+### 验收
+
+- 端到端断言 72 项全通过
+- 拆解三步状态流转、资产子目录落盘、缺字段拒绝、来源回链均有用例覆盖
+
 ## [v0.1.0] - 2026-10-22
 
 ### 里程碑

@@ -280,11 +280,76 @@ async function main() {
   check('首页含常用资料卡', homeAfterPromote.text.includes('常用资料'));
   check('首页显示知识库笔记', homeAfterPromote.text.includes('转正测试-笔记'));
 
+  // 7.6 拆解与资产（M1）
+  const badAnalysis = await skill('analysis.create', { title: '空素材' });
+  check('拆解缺素材被拒绝', badAnalysis.status === 400, `status=${badAnalysis.status}`);
+
+  const analysis = await skill('analysis.create', {
+    title: '封面爆款拆解',
+    sources: 'https://example.com/a\nhttps://example.com/b',
+  });
+  check(
+    'analysis.create 创建成功',
+    analysis.status === 200 && analysis.json?.data?.stage === 'intake',
+    `status=${analysis.status}`
+  );
+  const analysisPath = analysis.json?.data?.path;
+  check(
+    '拆解文件落 05-拆解',
+    Boolean(analysisPath) && analysisPath.startsWith('05-拆解/'),
+    `path=${analysisPath}`
+  );
+
+  if (analysisPath) {
+    const s1 = await skill('analysis.advance', { path: analysisPath });
+    check('拆解推进到 verify', s1.json?.data?.stage === 'verify', `stage=${s1.json?.data?.stage}`);
+    const s2 = await skill('analysis.advance', { path: analysisPath });
+    check('拆解推进到 result', s2.json?.data?.stage === 'result', `stage=${s2.json?.data?.stage}`);
+  }
+
+  const badAsset = await skill('asset.create', { name: '缺字段', assetType: 'angle' });
+  check('资产缺 problem/why 被拒绝', badAsset.status === 400, `status=${badAsset.status}`);
+
+  const asset = await skill('asset.create', {
+    name: '用对比找到真正差异',
+    assetType: 'angle',
+    problem: '测评、平台差异、方案选择',
+    why: '不知道选哪个，需要明确判断标准',
+    skeleton: '先给同一场景两种做法，再给差异与结论',
+    source: analysisPath
+      ? `[[${analysisPath.replace(/^05-拆解\//, '').replace(/\.md$/, '')}]]`
+      : '',
+  });
+  check(
+    'asset.create 成功',
+    asset.status === 200 && asset.json?.data?.assetType === 'angle',
+    `status=${asset.status}`
+  );
+  const assetPath = asset.json?.data?.path;
+  check(
+    '资产落选题角度子目录',
+    Boolean(assetPath) && assetPath.startsWith('06-资产/选题角度/'),
+    `path=${assetPath}`
+  );
+  if (assetPath) {
+    const raw = await fs.readFile(path.join(VAULT, assetPath), 'utf8');
+    check('资产带来源回链', raw.includes('source: "[[拆解-'));
+  }
+
+  const analysisPage = await get('/analysis');
+  check('拆解页 200 且含标题', analysisPage.status === 200 && analysisPage.text.includes('封面爆款拆解'));
+  const assetsPage = await get('/assets');
+  check(
+    '资产页 200 且含资产名',
+    assetsPage.status === 200 && assetsPage.text.includes('用对比找到真正差异')
+  );
+  check('导航含拆解与沉淀', assetsPage.text.includes('拆解与沉淀'));
+
   // 8. Skill 注册表
   const skillsPage = await get('/skills');
   check('助手页返回 200', skillsPage.status === 200);
   const cards = (skillsPage.text.match(/class="card skill-card"/g) || []).length;
-  check('助手页列出 10 个动作型 Skill', cards === 10, `count=${cards}`);
+  check('助手页列出 13 个动作型 Skill', cards === 13, `count=${cards}`);
   check('助手页区分 AI 型与动作型', skillsPage.text.includes('AI 指令型') && skillsPage.text.includes('动作型'));
 
   const missing = await skill('topic.evaluate', { title: '只填了一个' });
