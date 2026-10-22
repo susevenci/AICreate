@@ -640,6 +640,26 @@ async function main() {
   const focusRaw = await fs.readFile(path.join(VAULT, '09-计划/专注日志.md'), 'utf8');
   check('专注日志含 25min', focusRaw.includes('25min'));
 
+  // 7.12 查询缓存（M7）
+  const { listByType: listCached, createNote: createCached } = await import('../lib/vault.mjs');
+  const snapA = await listCached('task');
+  const snapB = await listCached('task');
+  check('listByType 命中缓存', snapA === snapB);
+  await createCached({
+    type: 'task',
+    title: '缓存单元测试',
+    data: {
+      type: 'task',
+      status: 'todo',
+      priority: 'normal',
+      source: 'manual',
+      createdAt: new Date().toISOString().slice(0, 10),
+    },
+    body: '# 缓存单元测试\n',
+  });
+  const snapC = await listCached('task');
+  check('写操作后缓存失效', snapC.length > snapA.length, `before=${snapA.length} after=${snapC.length}`);
+
   // 8. Skill 注册表
   const skillsPage = await get('/skills');
   check('助手页返回 200', skillsPage.status === 200);

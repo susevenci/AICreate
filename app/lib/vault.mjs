@@ -237,8 +237,18 @@ export async function listRecentFiles(relDir, limit = 5) {
   return rows.slice(0, limit);
 }
 
-/** 按类型列出笔记，返回解析后的数组（按 mtime 倒序） */
+/** 按类型列出笔记，返回解析后的数组（默认 60 秒缓存，写操作失效） */
+const TYPE_CACHE = new Map();
+const TYPE_CACHE_TTL = 60_000;
+
+export function invalidateCache() {
+  TYPE_CACHE.clear();
+}
+
 export async function listByType(type) {
+  const hit = TYPE_CACHE.get(type);
+  if (hit && Date.now() - hit.at < TYPE_CACHE_TTL) return hit.value;
+
   const dir = DIRS[type];
   if (!dir) throw new HttpError(400, 'type_invalid', `未定义目录的类型：${type}`);
   const files = await listFiles(dir);
@@ -248,6 +258,7 @@ export async function listByType(type) {
     if (note.data && note.data.type === type) notes.push(note);
   }
   notes.sort((a, b) => (a.mtime < b.mtime ? 1 : -1));
+  TYPE_CACHE.set(type, { at: Date.now(), value: notes });
   return notes;
 }
 
@@ -373,6 +384,7 @@ export async function createNote({ type, title, data, body, dateStr, dir: dirOve
   const abs = safeResolve(relPath);
   await fs.mkdir(path.dirname(abs), { recursive: true });
   await fs.writeFile(abs, text, 'utf8');
+  invalidateCache();
   return { path: relPath, note: await readNote(relPath) };
 }
 
@@ -395,6 +407,7 @@ export async function updateFields(relPath, patch) {
   const merged = { ...note.data, ...patch };
   const text = composeNote(merged, note.body);
   await fs.writeFile(safeResolve(relPath), text, 'utf8');
+  invalidateCache();
   return readNote(relPath);
 }
 
@@ -422,6 +435,7 @@ export async function updateConfig(patch, changeLine) {
   const merged = { ...note.data, ...patch, updatedAt: today() };
   const body = changeLine ? appendChangeLine(note.body, changeLine) : note.body;
   await fs.writeFile(safeResolve(CONFIG_PATH), composeNote(merged, body), 'utf8');
+  invalidateCache();
   return readConfig();
 }
 
@@ -433,6 +447,7 @@ export async function trashNote(relPath) {
   await fs.mkdir(safeResolveKeepHidden(targetDir), { recursive: true });
   const target = `${targetDir}/${path.basename(relPath)}`;
   await fs.rename(safeResolve(relPath), safeResolveKeepHidden(target));
+  invalidateCache();
   return { movedTo: target, title: note.name };
 }
 
