@@ -142,7 +142,7 @@ export function renderPlan({ todayTasks, unscheduled, overdue, today }) {
 
 /* ---------------------------------------------------------------- 发布与经营（M3） */
 
-export function renderBenchmark({ bloggers, sources, counts, thresholds, lastRefresh = '' }) {
+export function renderBenchmark({ bloggers, sources, counts, thresholds, lastRefresh = '', youtubeReady = false, origin = '', report = null }) {
   const sourceRows = sources.length
     ? sources
         .map(
@@ -152,6 +152,7 @@ export function renderBenchmark({ bloggers, sources, counts, thresholds, lastRef
             <td class="num">${s.data.views ?? 0}</td>
             <td class="num">${s.data.baseline ?? 0}</td>
             <td>${escapeHtml(String(s.data.publishedAt || '—'))}</td>
+            <td>${escapeHtml(s.data.collector || 'manual')}</td>
             <td>${escapeHtml(s.data.sourceLevel || 'L0')}</td></tr>`
         )
         .join('')
@@ -166,6 +167,26 @@ export function renderBenchmark({ bloggers, sources, counts, thresholds, lastRef
     ${statCard('低粉爆款', counts.lowFan + ' 条', `粉丝 < ${thresholds.lowFan} 且互动率 > ${thresholds.engagement}`)}
     ${statCard('爆款内容异常值', counts.outlier + ' 条', `播放 > 基线 × ${thresholds.outlier}`)}
     ${statCard('近 3 天更新', counts.recent + ' 条', '按 publishedAt 筛选')}
+  </section>
+  ${report && report.imported ? `<div class="notice okbox">导入完成：新建 ${report.created} 条，更新 ${report.updated} 条，跳过 ${report.skipped} 条。</div>` : ''}
+  <section class="card">
+    <h2>提取当前页面（B站 / 小红书 / 抖音 / 快手）</h2>
+    <p class="muted small">把下面按钮拖到书签栏；在平台页面点一下，读取当前页面已渲染的作品并弹窗生成 CSV。不翻页、不遍历、不发请求。</p>
+    <p><a class="button" draggable="true" href="javascript:(function(){var s=document.createElement('script');s.src='${escapeHtml(origin)}/assets/extract.js?t='+Date.now();document.body.appendChild(s);})()">拖动我到书签栏</a></p>
+    <p class="muted small">提取后在本页下方粘贴 CSV 即可入库（等级 L1，采集记作 browser-extract）。</p>
+    <form class="form" data-skill="source.import">
+      <textarea name="csv" rows="6" required placeholder="platform,platformId,title,url,author,views,likes,comments,shares,publishedAt"></textarea>
+      <div class="form-actions"><button class="primary" type="submit">导入提取结果</button></div>
+    </form>
+  </section>
+  <section class="card">
+    <h2>YouTube 官方同步</h2>
+    <p class="muted small">${youtubeReady ? '已检测到 YOUTUBE_API_KEY，可按频道同步最新作品与统计（L2）。' : '未配置 YOUTUBE_API_KEY，同步按钮禁用，请走手工或提取器。密钥只放 .env.local，不写入 vault。'}</p>
+    <form class="form grid-form" data-skill="source.sync">
+      <label>频道 ID <input name="channelId" placeholder="UCxxxxxxxx" /></label>
+      <label>条数 <input name="max" type="number" min="1" max="50" value="10" /></label>
+      <div class="form-actions"><button class="primary" type="submit" ${youtubeReady ? '' : 'disabled'}>同步最新作品</button></div>
+    </form>
   </section>
   <section class="grid-2">
     <div class="card"><h2>添加监控博主</h2>
@@ -195,7 +216,7 @@ export function renderBenchmark({ bloggers, sources, counts, thresholds, lastRef
   <section class="card">
     <h2>对标作品</h2>
     <div class="table-wrap"><table>
-      <thead><tr><th>作品</th><th>平台</th><th>粉丝</th><th>播放</th><th>基线</th><th>发布</th><th>等级</th></tr></thead>
+      <thead><tr><th>作品</th><th>平台</th><th>粉丝</th><th>播放</th><th>基线</th><th>发布</th><th>采集</th><th>等级</th></tr></thead>
       <tbody>${sourceRows}</tbody>
     </table></div>
   </section>`;

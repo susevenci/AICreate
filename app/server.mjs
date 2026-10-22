@@ -38,6 +38,7 @@ import {
   worksSummary,
 } from './lib/vault.mjs';
 import { getSkill, listSkills, renderPrompt, missingInputs } from './lib/skills.mjs';
+import { youtubeConfigured, fetchChannelSources } from './lib/collectors/youtube.mjs';
 import {
   layout,
   renderSetup,
@@ -176,6 +177,7 @@ async function loadBenchmarkPage(config) {
     sources,
     counts,
     lastRefresh: config.lastRefresh || '',
+    youtubeReady: youtubeConfigured(),
     thresholds: {
       lowFan: config.lowFanThreshold,
       engagement: config.engagementThreshold,
@@ -263,6 +265,7 @@ const STATIC = {
   '/assets/styles.css': { file: 'styles.css', type: 'text/css; charset=utf-8' },
   '/assets/app.js': { file: 'app.js', type: 'text/javascript; charset=utf-8' },
   '/assets/focus.js': { file: 'focus.js', type: 'text/javascript; charset=utf-8' },
+  '/assets/extract.js': { file: 'extract.js', type: 'text/javascript; charset=utf-8' },
   '/favicon.ico': null,
 };
 
@@ -587,6 +590,144 @@ async function upsertMetric({ work, date, platform, views, inquiries, deals, sou
     body: metricBody(data),
   });
   return { path: created.path, updated: false };
+}
+
+/** 支持引号的 CSV 行拆分 */
+function splitCsvLine(line) {
+  const cells = [];
+  let buf = '';
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (quoted) {
+      if (ch === '"' && line[i + 1] === '"') {
+        buf += '"';
+        i += 1;
+      } else if (ch === '"') {
+        quoted = false;
+      } else {
+        buf += ch;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      quoted = true;
+      continue;
+    }
+    if (ch === ',') {
+      cells.push(buf.trim());
+      buf = '';
+      continue;
+    }
+    buf += ch;
+  }
+  cells.push(buf.trim());
+  return cells;
+}
+
+/** 解析对标作品 CSV，支持表头；无表头时按固定列序 */
+function parseSourceCsv(text) {
+  const lines = String(text || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return [];
+
+  const header = ['platform', 'platformId', 'title', 'url', 'author', 'views', 'likes', 'comments', 'shares', 'publishedAt'];
+  let columns = header;
+  let start = 0;
+  const first = splitCsvLine(lines[0]).map((c) => c.toLowerCase());
+  if (first.includes('platform') || first.includes('平台')) {
+    columns = splitCsvLine(lines[0]).map((c) => {
+      const key = c.toLowerCase();
+      if (key === '平台') return 'platform';
+      if (key === '标题') return 'title';
+      if (key === '链接') return 'url';
+      if (key === '播放') return 'views';
+      if (key === '点赞') return 'likes';
+      if (key === '评论') return 'comments';
+      if (key === '分享') return 'shares';
+      return key;
+    });
+    start = 1;
+  }
+
+  const rows = [];
+  for (let i = start; i < lines.length; i += 1) {
+    const cells = splitCsvLine(lines[i]);
+    const row = {};
+    columns.forEach((col, idx) => {
+      row[col] = cells[idx] ?? '';
+    });
+    rows.push(row);
+  }
+  return rows;
+}
+
+async function upsertSource(row, { collector, sourceLevel }) {
+  const platform = String(row.platform || '').trim();
+  const platformId = String(row.platformId || '').trim();
+  const url = String(row.url || '').trim();
+  if (!platform) return { skipped: true, reason: '缺少平台' };
+  if (!platformId && !url) return { skipped: true, reason: '缺少 platformId 与链接' };
+
+  const notes = await listByType('source');
+  const existing = notes.find(
+    (n) =>
+      String(n.data.platform || '') === platform &&
+      ((platformId && String(n.data.platformId || '') === platformId) || (url && String(n.data.url || '') === url))
+  );
+
+  const patch = {
+    platform,
+    platformId: platformId || String(existing?.data?.platformId || ''),
+    url,
+    views: Number(row.views) || 0,
+    likes: Number(row.likes) || 0,
+    comments: Number(row.comments) || 0,
+    shares: Number(row.shares) || 0,
+    collector,
+    fetchedAt: today(),
+    sourceLevel,
+  };
+
+  if (existing) {
+    await updateFields(existing.path, patch);
+    return { updated: true, path: existing.path };
+  }
+
+  const title = String(row.title || '').trim() || `${platform} 作品`;
+  const data = {
+    type: 'source',
+    ...patch,
+    blogger: String(row.blogger || '').trim(),
+    publishedAt: String(row.publishedAt || '').trim(),
+    rawPath: '',
+    createdAt: today(),
+  };
+  const { ok: valid, errors } = validate('source', data);
+  if (!valid) return { skipped: true, reason: errors.map((e) => e.message).join('; ') };
+  const created = await createNote({ type: 'source', title, data, body: `# ${title}\n\n## 摘录\n\n` });
+  return { created: true, path: created.path };
+}
+
+/** 根据采集结果批量 upsert，返回报告 */
+async function importSources(rows, options) {
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+  const errors = [];
+  for (const row of rows) {
+    const result = await upsertSource(row, options);
+    if (result.created) created += 1;
+    else if (result.updated) updated += 1;
+    else {
+      skipped += 1;
+      errors.push(result.reason || '未写入');
+    }
+  }
+  return { created, updated, skipped, errors };
 }
 
 const ACTIONS = {
@@ -1039,6 +1180,34 @@ const ACTIONS = {
     return { lastRefresh: today(), mode: 'manual', previous: config.data.lastRefresh || '' };
   },
 
+  'source.import': async (params) => {
+    const rows = parseSourceCsv(params.csv);
+    if (rows.length === 0) throw new HttpError(400, 'field_required', '没有可导入的行');
+    const result = await importSources(rows, { collector: 'browser-extract', sourceLevel: 'L1' });
+    return {
+      ...result,
+      redirect: `/benchmark?imported=1&created=${result.created}&updated=${result.updated}&skipped=${result.skipped}`,
+    };
+  },
+
+  'source.sync': async (params) => {
+    const channelId = String(params.channelId || '').trim();
+    let rows = [];
+    try {
+      rows = await fetchChannelSources({ channelId, max: params.max });
+    } catch (err) {
+      throw new HttpError(400, err.code || 'sync_failed', err.message);
+    }
+    const result = await importSources(
+      rows.map((r) => ({ ...r, blogger: String(params.blogger || '').trim() })),
+      { collector: 'youtube-api', sourceLevel: 'L2' }
+    );
+    return {
+      ...result,
+      redirect: `/benchmark?imported=1&created=${result.created}&updated=${result.updated}&skipped=${result.skipped}`,
+    };
+  },
+
   'focus.log': async (params) => {
     const minutes = Number(params.minutes) || 25;
     const ref = String(params.ref || '').trim();
@@ -1145,7 +1314,22 @@ async function route(req, res) {
       }
       case '/benchmark': {
         const data = await loadBenchmarkPage(config);
-        return sendHtml(res, layout({ config, active: 'benchmark', title: '对标与热点', content: renderBenchmark(data) }));
+        const report = {
+          imported: url.searchParams.get('imported') === '1',
+          created: Number(url.searchParams.get('created') || 0),
+          updated: Number(url.searchParams.get('updated') || 0),
+          skipped: Number(url.searchParams.get('skipped') || 0),
+        };
+        const origin = `http://${req.headers.host || '127.0.0.1:4173'}`;
+        return sendHtml(
+          res,
+          layout({
+            config,
+            active: 'benchmark',
+            title: '对标与热点',
+            content: renderBenchmark({ ...data, origin, report }),
+          })
+        );
       }
       case '/boards': {
         const data = await loadBoardsPage();

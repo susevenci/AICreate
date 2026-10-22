@@ -679,11 +679,59 @@ async function main() {
   const snapC = await listCached('task');
   check('写操作后缓存失效', snapC.length > snapA.length, `before=${snapA.length} after=${snapC.length}`);
 
+  // 7.13 半自动提取与官方同步（v1.1.0）
+  const importCsv = [
+    'platform,platformId,title,url,author,views,likes,comments,shares,publishedAt',
+    'B站,BV1test001,"测试视频, 带逗号",https://www.bilibili.com/video/BV1test001,,12000,800,60,30,2026-10-20',
+    '小红书,note001,测试笔记,https://www.xiaohongshu.com/explore/note001,,3000,200,15,5,2026-10-21',
+    ',missing001,缺平台,https://example.com/x,,1,1,1,1,',
+  ].join('\n');
+  const importedSources = await skill('source.import', { csv: importCsv });
+  check(
+    '提取结果导入成功',
+    importedSources.status === 200 &&
+      importedSources.json?.data?.created === 2 &&
+      importedSources.json?.data?.skipped === 1,
+    `created=${importedSources.json?.data?.created} skipped=${importedSources.json?.data?.skipped}`
+  );
+  const importedAgain = await skill('source.import', { csv: importCsv });
+  check(
+    '重复导入只更新不新增',
+    importedAgain.json?.data?.created === 0 && importedAgain.json?.data?.updated === 2,
+    `created=${importedAgain.json?.data?.created} updated=${importedAgain.json?.data?.updated}`
+  );
+
+  const benchAfterImport = await get('/benchmark');
+  check(
+    '页面显示提取与导入区块',
+    benchAfterImport.text.includes('提取当前页面') && benchAfterImport.text.includes('导入提取结果')
+  );
+  check(
+    '导入记录采集来源与等级',
+    benchAfterImport.text.includes('browser-extract') && benchAfterImport.text.includes('L1')
+  );
+
+  const extractJs = await get('/assets/extract.js');
+  check(
+    '提取器脚本可访问且覆盖四平台',
+    extractJs.status === 200 && ['B站', '小红书', '抖音', '快手'].every((p) => extractJs.text.includes(p))
+  );
+
+  const hasYoutubeKey = benchAfterImport.text.includes('已检测到 YOUTUBE_API_KEY');
+  const syncRes = await skill('source.sync', { channelId: 'UCtest' });
+  check(
+    'YouTube 同步按密钥状态降级或执行',
+    hasYoutubeKey
+      ? syncRes.status === 200 || syncRes.status === 400
+      : syncRes.status === 400 && syncRes.json?.error?.code === 'missing_key',
+    `key=${hasYoutubeKey} status=${syncRes.status}`
+  );
+
   // 8. Skill 注册表
   const skillsPage = await get('/skills');
   check('助手页返回 200', skillsPage.status === 200);
   const cards = (skillsPage.text.match(/class="card skill-card"/g) || []).length;
-  check('助手页列出 30 个动作型 Skill', cards === 30, `count=${cards}`);
+  check('助手页列出 32 个动作型 Skill', cards === 32, `count=${cards}`);
   check('助手页区分 AI 型与动作型', skillsPage.text.includes('AI 指令型') && skillsPage.text.includes('动作型'));
 
   const missing = await skill('topic.evaluate', { title: '只填了一个' });

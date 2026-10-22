@@ -91,7 +91,7 @@ export const ENUMS = {
   'inbox.status': ['raw', 'processing', 'done'],
   'analysis.stage': ['intake', 'verify', 'result'],
   'asset.assetType': ['angle', 'structure', 'opening', 'title'],
-  'source.sourceLevel': ['L0', 'L1'],
+  'source.sourceLevel': ['L0', 'L1', 'L2'],
   'metric.source': ['manual', 'csv'],
   'blogger.fit': ['fit', 'unfit', 'watch'],
 };

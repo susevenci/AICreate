@@ -1,6 +1,6 @@
 ---
 type: schema
-version: 1.3.0
+version: 1.4.0
 updatedAt: 2026-10-22
 ---
 
@@ -216,11 +216,15 @@ M0 实现前 9 类；`page` 用于视图层笔记（只放查询），`note` 用
 | platform | string | 是 | 平台名 |
 | blogger | link | 否 | 所属博主 |
 | publishedAt | date | 否 | 发布日期 |
+| platformId | string | 否 | 平台内作品标识（bvid / noteId / awemeId），去重键 |
+| url | string | 否 | 作品链接 |
+| collector | string | 否 | 采集来源：`manual` / `browser-extract` / `youtube-api` / `csv` |
+| fetchedAt | date | 否 | 采集时间，用于判断数据新鲜度 |
 | followers | number | 否 | 博主粉丝数快照，用于低粉爆款判定 |
 | baseline | number | 否 | 该博主互动基线，用于异常值判定 |
 | views / likes / comments / shares | number | 否 | 互动数据 |
 | rawPath | string | 否 | 正文文件路径或链接 |
-| sourceLevel | enum | 是 | `L0`（手动）/ `L1`（后台导出），M1-M5 不允许更高等级 |
+| sourceLevel | enum | 是 | `L0`（手动）/ `L1`（后台导出或半自动提取）/ `L2`（官方 API），不允许更高等级 |
 | createdAt | date | 是 | — |
 
 `engagement` 为派生字段，不落盘，由查询现算。

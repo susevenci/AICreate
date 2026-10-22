@@ -3,6 +3,24 @@
 版本号与里程碑对应：M0 = v0.1.0，M1 = v0.2.0，依次递增，M6 收口为 v0.7.0，M7 完成后为 v1.0.0。
 每个版本发布前必须满足：`node app/scripts/verify.mjs` 全绿 + 浏览器验收 + 重启后数据留存。
 
+## [v1.1.0] - 2026-10-22
+
+### 里程碑
+
+对标数据采集：半自动提取（A）+ 官方 API 同步（B）。
+
+### 新增
+
+- 契约 schema 1.4.0：`source` 增 `platformId` / `url` / `collector` / `fetchedAt`；`sourceLevel` 扩到 L0/L1/L2
+- 提取器 `app/web/extract.js`：在 B站/小红书/抖音/快手页面读取当前已渲染作品，生成 CSV（不翻页、不遍历、不发请求）
+- `source.import`：CSV 按 `platform + platformId` 去重入库，带导入报告
+- `source.sync` + `collectors/youtube.mjs`：YouTube 官方 Data API，缺密钥时降级
+- 对标页新增「提取当前页面」「YouTube 官方同步」两块，表格增「采集」列
+
+### 验收
+
+- 端到端断言 135 项全通过（含去重、跳过、无密钥降级）
+
 ## [v1.0.3] - 2026-10-22
 
 ### 新增
