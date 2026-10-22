@@ -438,7 +438,7 @@ async function main() {
   const skillsPage = await get('/skills');
   check('助手页返回 200', skillsPage.status === 200);
   const cards = (skillsPage.text.match(/class="card skill-card"/g) || []).length;
-  check('助手页列出 16 个动作型 Skill', cards === 16, `count=${cards}`);
+  check('助手页列出 19 个动作型 Skill', cards === 19, `count=${cards}`);
   check('助手页区分 AI 型与动作型', skillsPage.text.includes('AI 指令型') && skillsPage.text.includes('动作型'));
 
   const missing = await skill('topic.evaluate', { title: '只填了一个' });

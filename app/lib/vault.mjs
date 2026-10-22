@@ -82,6 +82,7 @@ export const ENUMS = {
   'analysis.stage': ['intake', 'verify', 'result'],
   'asset.assetType': ['angle', 'structure', 'opening', 'title'],
   'source.sourceLevel': ['L0', 'L1'],
+  'metric.source': ['manual', 'csv'],
 };
 
 /** 必填字段（_schema.md 第 4 节） */
@@ -95,6 +96,8 @@ export const REQUIRED = {
   analysis: ['type', 'stage', 'sources', 'createdAt', 'updatedAt'],
   asset: ['type', 'assetType', 'name', 'problem', 'why', 'createdAt'],
   source: ['type', 'platform', 'sourceLevel', 'createdAt'],
+  work: ['type', 'draft', 'publishDate', 'platforms', 'createdAt'],
+  metric: ['type', 'work', 'date', 'source', 'createdAt'],
 };
 
 // ---------------------------------------------------------------- 基础工具
@@ -498,6 +501,21 @@ export function groupTopics(notes) {
 export function monthOf(value) {
   if (!value) return '';
   return String(value).slice(0, 7);
+}
+
+/** 作品与指标的口径汇总：成交按条数，播放不推成交 */
+export function worksSummary(works, metrics, ym) {
+  const published = works.filter((w) => monthOf(w.data.publishDate) === ym);
+  const current = metrics.filter((m) => monthOf(m.data.date) === ym);
+  const sum = (key) => current.reduce((s, m) => s + (Number(m.data[key]) || 0), 0);
+  return {
+    published: published.length,
+    works: works.length,
+    deals: current.reduce((s, m) => s + (Number(m.data.deals) || 0), 0),
+    views: sum('views'),
+    metrics: current.length,
+    missingDate: metrics.filter((m) => !m.data.date).length,
+  };
 }
 
 export function ledgerSummary(notes, ym) {

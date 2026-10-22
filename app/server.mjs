@@ -33,6 +33,7 @@ import {
   checkLinks,
   groupTopics,
   ledgerSummary,
+  worksSummary,
 } from './lib/vault.mjs';
 import { getSkill, listSkills, renderPrompt, missingInputs } from './lib/skills.mjs';
 import {
@@ -45,6 +46,7 @@ import {
   renderLedger,
   renderAnalysis,
   renderAssets,
+  renderWorks,
   renderSkills,
   renderSettings,
   parseChanges,
@@ -112,6 +114,18 @@ async function loadDraftDetail(name) {
   const note = await readNote(relPath);
   const versions = await listSnapshots(relPath);
   return { draft: note, versions };
+}
+
+async function loadWorksPage(query) {
+  const [works, metrics] = await Promise.all([listByType('work'), listByType('metric')]);
+  const ym = today().slice(0, 7);
+  const report = {
+    imported: query.get('imported') === '1',
+    created: Number(query.get('created') || 0),
+    updated: Number(query.get('updated') || 0),
+    skipped: Number(query.get('skipped') || 0),
+  };
+  return { works, metrics, ym, summary: worksSummary(works, metrics, ym), report };
 }
 
 // ---------------------------------------------------------------- HTTP 工具
@@ -432,6 +446,74 @@ async function createInbox(payload) {
 const TOPIC_STATUSES = ['backlog', 'researching', 'selected', 'in-production', 'archived'];
 const DRAFT_STEPS = ['idea', 'copy', 'title', 'cover', 'checklist', 'publish'];
 
+function metricBody(data) {
+  return [
+    `# ${data.work} ${data.date}`,
+    '',
+    '## 数据',
+    '',
+    `- 播放：${data.views}`,
+    `- 咨询：${data.inquiries}`,
+    `- 成交：${data.deals} 笔`,
+    '',
+  ].join('\n');
+}
+
+/** CSV 行格式：work,date,platform,views,inquiries,deals；首行可为表头 */
+function parseMetricCsv(text) {
+  return String(text || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^(work|作品)/i.test(line))
+    .map((line) => line.split(',').map((cell) => cell.trim()));
+}
+
+function linkName(value) {
+  return String(value || '')
+    .replace(/^\[\[/, '')
+    .replace(/\]\]$/, '')
+    .replace(/\.md$/, '');
+}
+
+async function upsertMetric({ work, date, platform, views, inquiries, deals, source }) {
+  const notes = await listByType('metric');
+  const existing = notes.find(
+    (n) =>
+      n.data.work === work &&
+      String(n.data.date) === date &&
+      String(n.data.platform || '') === String(platform || '')
+  );
+  if (existing) {
+    const updated = await updateFields(existing.path, {
+      views: Number(views) || 0,
+      inquiries: Number(inquiries) || 0,
+      deals: Number(deals) || 0,
+      source,
+    });
+    return { path: updated.path, updated: true };
+  }
+  const data = {
+    type: 'metric',
+    work,
+    date,
+    platform: platform || '',
+    views: Number(views) || 0,
+    inquiries: Number(inquiries) || 0,
+    deals: Number(deals) || 0,
+    source,
+    createdAt: today(),
+  };
+  const created = await createNote({
+    type: 'metric',
+    title: `${linkName(work)}-${date}${platform ? '-' + platform : ''}`,
+    data,
+    body: metricBody(data),
+  });
+  return { path: created.path, updated: false };
+}
+
 const ACTIONS = {
   'config.update': async (params, ctx) => {
     const name = String(params.name || '').trim();
@@ -666,6 +748,87 @@ const ACTIONS = {
     });
     return { path: created.path, source: note.path };
   },
+
+  'work.create': async (params) => {
+    const draft = String(params.draft || '').trim();
+    const publishDate = String(params.publishDate || '').trim();
+    const platforms = String(params.platforms || '')
+      .split(/[,，]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const data = {
+      type: 'work',
+      draft: draft.startsWith('[[') ? draft : `[[${linkName(draft)}]]`,
+      publishDate,
+      platforms,
+      urls: [],
+      topic: '',
+      createdAt: today(),
+    };
+    const { ok: valid, errors } = validate('work', data);
+    if (!valid) throw new HttpError(400, 'validation_failed', '字段校验未通过', errors);
+    const title = String(params.title || '').trim() || linkName(data.draft);
+    const created = await createNote({
+      type: 'work',
+      title,
+      data,
+      body: `# ${title}\n\n## 数据\n\n- 发布日期：${publishDate}\n- 平台：${platforms.join('、')}\n`,
+    });
+    return { path: created.path, platforms };
+  },
+
+  'metric.upsert': async (params) => {
+    const date = String(params.date || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new HttpError(400, 'date_invalid', '日期格式必须为 YYYY-MM-DD');
+    }
+    const work = String(params.work || '');
+    if (!work) throw new HttpError(400, 'field_required', 'work 不能为空');
+    const result = await upsertMetric({
+      work: work.startsWith('[[') ? work : `[[${linkName(work)}]]`,
+      date,
+      platform: String(params.platform || ''),
+      views: params.views,
+      inquiries: params.inquiries,
+      deals: params.deals,
+      source: 'manual',
+    });
+    return { path: result.path, updated: result.updated };
+  },
+
+  'metric.import': async (params) => {
+    const rows = parseMetricCsv(params.csv);
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    const errors = [];
+    for (const row of rows) {
+      const [workRaw, date, platform, views, inquiries, deals] = row;
+      if (!workRaw || !/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) {
+        skipped += 1;
+        errors.push(`缺少作品或日期：${row.join(',')}`);
+        continue;
+      }
+      const result = await upsertMetric({
+        work: workRaw.startsWith('[[') ? workRaw : `[[${linkName(workRaw)}]]`,
+        date,
+        platform: platform || '',
+        views,
+        inquiries,
+        deals,
+        source: 'csv',
+      });
+      if (result.updated) updated += 1;
+      else created += 1;
+    }
+    return {
+      created,
+      updated,
+      skipped,
+      errors,
+      redirect: `/works?imported=1&created=${created}&updated=${updated}&skipped=${skipped}`,
+    };
+  },
 };
 
 async function route(req, res) {
@@ -738,6 +901,10 @@ async function route(req, res) {
       case '/assets': {
         const data = await loadAssetsPage(url.searchParams.get('error'));
         return sendHtml(res, layout({ config, active: 'assets', title: '资产库', content: renderAssets(data) }));
+      }
+      case '/works': {
+        const data = await loadWorksPage(url.searchParams);
+        return sendHtml(res, layout({ config, active: 'works', title: '发布与经营', content: renderWorks(data) }));
       }
       case '/skills': {
         const skills = await listSkills();

@@ -1,6 +1,6 @@
 ---
 type: schema
-version: 1.1.0
+version: 1.2.0
 updatedAt: 2026-10-22
 ---
 
@@ -222,6 +222,32 @@ M0 实现前 9 类；`page` 用于视图层笔记（只放查询），`note` 用
 | createdAt | date | 是 | — |
 
 `engagement` 为派生字段，不落盘，由查询现算。
+
+### 4.12 work（`08-作品/作品/`）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| type | string | 是 | `work` |
+| draft | link | 是 | 原稿 `[[...]]` |
+| publishDate | date | 是 | 发布日期 |
+| platforms | list | 是 | 发布平台，同一内容多平台只记一条作品 |
+| urls | list | 否 | 各平台链接 |
+| topic | link | 否 | 来源选题 |
+| createdAt | date | 是 | — |
+
+### 4.13 metric（`08-作品/指标/`）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| type | string | 是 | `metric` |
+| work | link | 是 | 所属作品 |
+| date | date | 是 | 数据日期，缺失不允许写入 |
+| platform | string | 否 | 分平台记录 |
+| views / inquiries / deals | number | 否 | 播放、咨询、成交，三口径互不推算 |
+| source | enum | 是 | `manual` / `csv` |
+| createdAt | date | 是 | — |
+
+**口径铁律**：`deals` 是记录数，不是金额；月度成交按条数统计，不去重、不推算。
 
 ---
 
