@@ -3,6 +3,24 @@
 版本号与里程碑对应：M0 = v0.1.0，M1 = v0.2.0，依次递增，M6 收口为 v0.7.0，M7 完成后为 v1.0.0。
 每个版本发布前必须满足：`node app/scripts/verify.mjs` 全绿 + 浏览器验收 + 重启后数据留存。
 
+## [v0.3.0] - 2026-10-22
+
+### 里程碑
+
+M2 选题与创作。
+
+### 新增
+
+- 稿件详情页 `/drafts/:name`：六步进度、推进、分节正文编辑、快照列表
+- `vault.updateSection` / `snapshotDraft` / `listSnapshots`：只改单节、快照落 `07-稿件/_versions/`
+- 选题页「从知识库导入」（`topic.createFromNote`），第三个入口待 M5 对标上线
+- 6 个新 Skill：`draft.updateSection`、`draft.snapshot`、`topic.createFromNote`、`draft.write`、`title.generate`、`cover.brief`
+
+### 验收
+
+- 端到端断言 80 项全通过
+- 分节写入不破坏其他小节、快照版本递增、非法小节拒绝、从笔记生成选题均有覆盖
+
 ## [v0.2.0] - 2026-10-22
 
 ### 里程碑
@@ -52,7 +70,6 @@ M0 骨架 + M0.1 收口。
 ## 后续版本
 
 - v0.2.0 M1 输入与拆解：analysis / asset / source 契约，拆解三步，资产四库
-- v0.3.0 M2 选题与创作：稿件详情、六步推进、版本快照、选题三入口
 - v0.4.0 M3 发布与经营：作品登记、指标、CSV 导入、复盘
 - v0.5.0 M4 计划与助手：计划页、改期、AI 任务确认、Skill 收藏
 - v0.6.0 M5 对标与画板：对标四卡、博主与作品、画板索引

@@ -8,10 +8,41 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseFrontmatter } from '../lib/frontmatter.mjs';
 
-const BASE = process.env.BASE || 'http://127.0.0.1:4173';
+let BASE = process.env.BASE || '';
+const APP_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+let child = null;
+
+/** 未指定 BASE 时自建临时服务，避免端口残留于扰 */
+async function startServer() {
+  const port = String(4300 + Math.floor(Math.random() * 400));
+  const base = `http://127.0.0.1:${port}`;
+  child = spawn(process.execPath, ['server.mjs'], {
+    cwd: APP_DIR,
+    env: { ...process.env, PORT: port },
+    stdio: 'ignore',
+  });
+  for (let i = 0; i < 40; i += 1) {
+    try {
+      const res = await fetch(`${base}/api/health`);
+      if (res.ok) return base;
+    } catch {
+      // 服务还没就绪，继续等
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error('临时服务未能启动');
+}
+
+function stopServer() {
+  if (child) {
+    child.kill();
+    child = null;
+  }
+}
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const VAULT = path.resolve(HERE, '..', '..', 'vault');
 
@@ -103,6 +134,7 @@ async function readLedgerSum() {
 }
 
 async function main() {
+  if (!BASE) BASE = await startServer();
   // 1. 健康检查与初始化引导
   const health = await get('/api/health');
   check('GET /api/health 返回 200', health.status === 200, `status=${health.status}`);
@@ -345,11 +377,68 @@ async function main() {
   );
   check('导航含拆解与沉淀', assetsPage.text.includes('拆解与沉淀'));
 
+  // 7.7 稿件详情、分节写入与快照（M2）
+  const draftForDetail = await skill('draft.create', {
+    title: '详情页测试稿',
+    audience: '想验证详情页的创作者',
+  });
+  const detailPath = draftForDetail.json?.data?.path;
+  const detailName = detailPath ? path.basename(detailPath, '.md') : '';
+  const detailPage = await get(`/drafts/${encodeURIComponent(detailName)}`);
+  check(
+    '稿件详情页 200 且含快照入口',
+    detailPage.status === 200 && detailPage.text.includes('保存快照'),
+    `status=${detailPage.status}`
+  );
+
+  const sec = await skill('draft.updateSection', {
+    path: detailPath,
+    section: '正文',
+    content: '第一版正文内容',
+  });
+  check('分节写入成功', sec.status === 200 && sec.json?.data?.section === '正文', `status=${sec.status}`);
+  const rawAfter = await fs.readFile(path.join(VAULT, detailPath), 'utf8');
+  check(
+    '写入只改正文小节',
+    rawAfter.includes('第一版正文内容') && rawAfter.includes('## 思路') && rawAfter.includes('## 发布检查')
+  );
+
+  const badSec = await skill('draft.updateSection', {
+    path: detailPath,
+    section: '不存在的节',
+    content: 'x',
+  });
+  check('非法小节被拒绝', badSec.status === 400, `status=${badSec.status}`);
+
+  const snap1 = await skill('draft.snapshot', { path: detailPath });
+  const snap2 = await skill('draft.snapshot', { path: detailPath });
+  check('快照 v1 生成', snap1.json?.data?.version === 1, `v=${snap1.json?.data?.version}`);
+  check('快照版本递增', snap2.json?.data?.version === 2, `v=${snap2.json?.data?.version}`);
+  check(
+    '快照文件落 _versions',
+    String(snap2.json?.data?.path || '').includes('07-稿件/_versions/')
+  );
+
+  const inboxForNote = await skill('inbox.capture', { title: '笔记转选题测试' });
+  const promotedNote = await skill('inbox.promote', {
+    path: inboxForNote.json?.data?.path,
+    target: 'note',
+  });
+  const fromNote = await skill('topic.createFromNote', {
+    note: promotedNote.json?.data?.path,
+    title: '来自笔记的选题',
+  });
+  check(
+    '从笔记生成选题',
+    fromNote.status === 200 && String(fromNote.json?.data?.path || '').startsWith('04-选题/'),
+    `path=${fromNote.json?.data?.path}`
+  );
+
   // 8. Skill 注册表
   const skillsPage = await get('/skills');
   check('助手页返回 200', skillsPage.status === 200);
   const cards = (skillsPage.text.match(/class="card skill-card"/g) || []).length;
-  check('助手页列出 13 个动作型 Skill', cards === 13, `count=${cards}`);
+  check('助手页列出 16 个动作型 Skill', cards === 16, `count=${cards}`);
   check('助手页区分 AI 型与动作型', skillsPage.text.includes('AI 指令型') && skillsPage.text.includes('动作型'));
 
   const missing = await skill('topic.evaluate', { title: '只填了一个' });
@@ -392,7 +481,9 @@ async function main() {
   if (failed > 0) process.exitCode = 1;
 }
 
-main().catch((err) => {
-  console.error('验收脚本异常：', err);
-  process.exitCode = 1;
-});
+main()
+  .catch((err) => {
+    console.error('验收脚本异常：', err);
+    process.exitCode = 1;
+  })
+  .finally(() => stopServer());

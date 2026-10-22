@@ -25,6 +25,9 @@ import {
   readConfig,
   createNote,
   updateFields,
+  updateSection,
+  snapshotDraft,
+  listSnapshots,
   updateConfig,
   validate,
   checkLinks,
@@ -38,6 +41,7 @@ import {
   renderHome,
   renderTopics,
   renderDrafts,
+  renderDraftDetail,
   renderLedger,
   renderAnalysis,
   renderAssets,
@@ -101,6 +105,13 @@ async function loadAnalysisPage(error) {
 async function loadAssetsPage(error) {
   const assets = await listByType('asset');
   return { assets, error };
+}
+
+async function loadDraftDetail(name) {
+  const relPath = `07-稿件/${name}.md`;
+  const note = await readNote(relPath);
+  const versions = await listSnapshots(relPath);
+  return { draft: note, versions };
 }
 
 // ---------------------------------------------------------------- HTTP 工具
@@ -612,6 +623,49 @@ const ACTIONS = {
     });
     return { path: created.path, assetType };
   },
+
+  'draft.updateSection': async (params) => {
+    const sections = ['思路', '正文', '标题候选', '封面 brief', '发布检查'];
+    const section = String(params.section || '');
+    if (!sections.includes(section)) {
+      throw new HttpError(400, 'enum_invalid', `非法小节：${section}`);
+    }
+    const note = await updateSection(String(params.path || ''), section, params.content);
+    return { path: note.path, section };
+  },
+
+  'draft.snapshot': async (params) => {
+    const result = await snapshotDraft(String(params.path || ''));
+    return { path: result.path, version: result.version };
+  },
+
+  'topic.createFromNote': async (params) => {
+    const note = await readNote(String(params.note || ''));
+    if (note.data.type !== 'note') throw new HttpError(400, 'type_invalid', '来源必须是知识库笔记');
+    const title = String(params.title || '').trim() || humanizeInboxTitle(note.name);
+    const material = `[[${note.name}]]`;
+    const data = {
+      type: 'topic',
+      status: 'backlog',
+      origin: ['note'],
+      problem: String(params.problem || '').trim() || title,
+      material,
+      angle: '',
+      fit: null,
+      fitReason: '',
+      refs: [material],
+      createdAt: today(),
+      updatedAt: today(),
+      tags: [],
+    };
+    const created = await createNote({
+      type: 'topic',
+      title,
+      data,
+      body: topicBody({ title, problem: data.problem, material, angle: '' }),
+    });
+    return { path: created.path, source: note.path };
+  },
 };
 
 async function route(req, res) {
@@ -631,6 +685,31 @@ async function route(req, res) {
   }
 
   if (method === 'GET') {
+    if (pathname.startsWith('/drafts/')) {
+      const name = decodeURIComponent(pathname.slice('/drafts/'.length));
+      try {
+        const data = await loadDraftDetail(name);
+        return sendHtml(
+          res,
+          layout({
+            config,
+            active: 'drafts',
+            title: '稿件详情',
+            content: renderDraftDetail({ config, ...data }),
+          })
+        );
+      } catch (err) {
+        if (err instanceof HttpError && err.status === 404) {
+          return sendHtml(
+            res,
+            layout({ config, active: 'drafts', title: '稿件不存在', content: '<h1>404</h1><p>稿件不存在。</p>' }),
+            404
+          );
+        }
+        throw err;
+      }
+    }
+
     switch (pathname) {
       case '/':
       case '/index.html': {

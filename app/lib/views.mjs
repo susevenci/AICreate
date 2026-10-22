@@ -308,6 +308,17 @@ export function renderTopics({ topics, groups, error }) {
       </label>
       <div class="form-actions"><button class="primary" type="submit">创建选题</button></div>
     </form>
+  </section>
+
+  <section class="card">
+    <h2>从知识库导入</h2>
+    <p class="muted small">从内部素材找选题：选一篇 02-知识库 的笔记，标题与问题可留空。从对标爆文导入待 M5 上线。</p>
+    <form class="form grid-form" data-skill="topic.createFromNote">
+      <label>来源笔记 <input name="note" required placeholder="02-知识库/笔记名.md" /></label>
+      <label>选题标题 <input name="title" placeholder="留空则用笔记名" /></label>
+      <label class="full">观众遇到什么问题 <input name="problem" placeholder="留空则用标题" /></label>
+      <div class="form-actions"><button class="primary" type="submit">生成选题</button></div>
+    </form>
   </section>`;
 }
 
@@ -325,7 +336,7 @@ export function renderDrafts({ drafts, error }) {
             : '';
           return `<article class="card draft">
             <div class="draft-head">
-              <h2>${escapeHtml(displayTitle(d.name))}</h2>
+              <h2><a class="link" href="/drafts/${encodeURIComponent(d.name)}">${escapeHtml(displayTitle(d.name))}</a></h2>
               <span class="pill">v${escapeHtml(String(d.data.version ?? 1))}</span>
             </div>
             <div class="steps">${bar}</div>
@@ -567,6 +578,57 @@ export function parseChanges(body) {
 }
 
 export { renderMarkdown };
+
+/* ---------------------------------------------------------------- 稿件详情（M2） */
+
+export function renderDraftDetail({ draft, versions }) {
+  const idx = STEP_LABELS.findIndex((s) => s[0] === draft.data.step);
+  const bar = STEP_LABELS.map(
+    (s, i) => `<span class="step${i === idx ? ' on' : ''}${i < idx ? ' done' : ''}">${s[1]}</span>`
+  ).join('');
+  const next = STEP_LABELS[idx + 1];
+  const body = extractSection(draft.body, '正文');
+  const versionRows = versions.length
+    ? versions.map((v) => `<li class="row"><span class="row-main">${escapeHtml(v.name)}</span></li>`).join('')
+    : '<li class="empty">还没有快照。定稿前先存一份。</li>';
+
+  return `
+  <section class="hero"><div><h1>${escapeHtml(displayTitle(draft.name))}</h1>
+    <p class="muted">目标读者：${escapeHtml(draft.data.audience || '未填写')}　｜　来源选题：${escapeHtml(
+      String(draft.data.topic || '—')
+    )}</p></div>
+    <div class="hero-actions"><a class="button" href="/drafts">返回列表</a></div>
+  </section>
+  <section class="card">
+    <div class="steps">${bar}</div>
+    <div class="draft-foot">
+      ${next ? `<button class="primary" data-skill="draft.advance" ${paramsAttr({ path: draft.path, step: next[0] })}>推进到：${next[1]}</button>` : '<span class="pill ok">已完成</span>'}
+      <button class="ghost" data-skill="draft.snapshot" ${paramsAttr({ path: draft.path })}>保存快照</button>
+      <span class="muted small">当前 v${escapeHtml(String(draft.data.version ?? 1))}</span>
+    </div>
+  </section>
+  <section class="card">
+    <h2>正文</h2>
+    <form class="form" data-skill="draft.updateSection">
+      <input type="hidden" name="path" value="${escapeHtml(draft.path)}" />
+      <input type="hidden" name="section" value="正文" />
+      <textarea name="content" rows="14" placeholder="在这里写正文…">${escapeHtml(body)}</textarea>
+      <div class="form-actions"><button class="primary" type="submit">保存正文</button></div>
+    </form>
+    <p class="muted small">只写入「## 正文」这一节，其他小节与 frontmatter 不动。</p>
+  </section>
+  <section class="grid-2">
+    <div class="card"><h2>历史快照</h2><ul class="list">${versionRows}</ul></div>
+    <div class="card"><h2>下一步</h2>
+      <ul class="plain">
+        <li>写文案：生成初稿后回到本页粘贴</li>
+        <li>起标题：候选写进「标题候选」小节</li>
+        <li>发布检查：勾选后推进到「发布」</li>
+      </ul>
+      <a class="link" href="/skills">调用 Skill →</a>
+    </div>
+  </section>`;
+}
 
 /* ---------------------------------------------------------------- 拆解与资产（M1） */
 

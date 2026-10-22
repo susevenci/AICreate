@@ -430,6 +430,54 @@ function safeResolveKeepHidden(relPath) {
   return target;
 }
 
+/** 只替换某个二级小节的内容，其余小节与字段不动 */
+export async function updateSection(relPath, heading, content) {
+  const note = await readNote(relPath);
+  const lines = note.body.replace(/\r\n/g, '\n').split('\n');
+  const start = lines.findIndex((line) => line.trim() === `## ${heading}`);
+  if (start === -1) throw new HttpError(400, 'section_not_found', `正文缺少小节：${heading}`);
+
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^##\s+/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+  const next = [
+    ...lines.slice(0, start + 1),
+    '',
+    String(content ?? '').trim(),
+    '',
+    ...lines.slice(end),
+  ];
+  await fs.writeFile(safeResolve(relPath), composeNote(note.data, next.join('\n')), 'utf8');
+  return readNote(relPath);
+}
+
+/** 把稿件当前内容存一份快照，返回版本号 */
+export async function snapshotDraft(relPath) {
+  const note = await readNote(relPath);
+  const dir = '07-稿件/_versions';
+  const base = path.basename(relPath).replace(/\.md$/, '');
+  const files = await listFiles(dir);
+  const count = files.filter((f) => path.basename(f).startsWith(`${base}-v`)).length;
+  const target = `${dir}/${base}-v${count + 1}.md`;
+  await fs.mkdir(safeResolve(dir), { recursive: true });
+  await fs.writeFile(safeResolve(target), note.raw, 'utf8');
+  return { path: target, version: count + 1 };
+}
+
+/** 列出某稿件的历史快照 */
+export async function listSnapshots(relPath) {
+  const base = path.basename(relPath).replace(/\.md$/, '');
+  const files = await listFiles('07-稿件/_versions');
+  return files
+    .filter((f) => path.basename(f).startsWith(`${base}-v`))
+    .sort()
+    .map((f) => ({ path: f, name: path.basename(f).replace(/\.md$/, '') }));
+}
+
 // ---------------------------------------------------------------- 派生统计
 
 export function groupTopics(notes) {
