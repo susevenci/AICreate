@@ -494,6 +494,24 @@ export async function listSnapshots(relPath) {
     .map((f) => ({ path: f, name: path.basename(f).replace(/\.md$/, '') }));
 }
 
+/** 向日志类笔记追加一行；文件不存在时先建 */
+export async function appendToNote(relPath, line, header = '专注日志') {
+  const abs = safeResolve(relPath);
+  let existing = null;
+  try {
+    existing = await fs.readFile(abs, 'utf8');
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+  if (existing === null) {
+    await fs.mkdir(path.dirname(abs), { recursive: true });
+    await fs.writeFile(abs, `# ${header}\n\n${line}\n`, 'utf8');
+  } else {
+    await fs.writeFile(abs, `${existing.replace(/\s+$/, '')}\n${line}\n`, 'utf8');
+  }
+  return { path: relPath };
+}
+
 // ---------------------------------------------------------------- 派生统计
 
 export function groupTopics(notes) {

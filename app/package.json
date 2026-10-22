@@ -1,6 +1,6 @@
 {
   "name": "ai-content-workbench",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "Markdown-first AI content workbench: read-only web mirror + API write-back, no database",

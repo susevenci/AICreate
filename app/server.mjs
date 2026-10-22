@@ -20,6 +20,7 @@ import {
   listByType,
   listRecentFiles,
   listFiles,
+  appendToNote,
   readNote,
   trashNote,
   ASSET_DIRS,
@@ -260,6 +261,7 @@ function escape(input) {
 const STATIC = {
   '/assets/styles.css': { file: 'styles.css', type: 'text/css; charset=utf-8' },
   '/assets/app.js': { file: 'app.js', type: 'text/javascript; charset=utf-8' },
+  '/assets/focus.js': { file: 'focus.js', type: 'text/javascript; charset=utf-8' },
   '/favicon.ico': null,
 };
 
@@ -504,6 +506,17 @@ async function createInbox(payload) {
 
 const TOPIC_STATUSES = ['backlog', 'researching', 'selected', 'in-production', 'archived'];
 const DRAFT_STEPS = ['idea', 'copy', 'title', 'cover', 'checklist', 'publish'];
+const MODULE_ROUTES = {
+  '/benchmark': 'benchmark',
+  '/topics': 'topics',
+  '/analysis': 'analysis',
+  '/assets': 'assets',
+  '/drafts': 'drafts',
+  '/works': 'works',
+  '/plan': 'plan',
+  '/boards': 'boards',
+  '/ledger': 'ledger',
+};
 
 function metricBody(data) {
   return [
@@ -981,6 +994,43 @@ const ACTIONS = {
     });
     return { path: created.path };
   },
+
+  'layout.move': async (params) => {
+    const key = String(params.key || '');
+    const direction = String(params.direction || 'up');
+    const config = await readConfig();
+    const order =
+      Array.isArray(config.data.layout) && config.data.layout.length
+        ? [...config.data.layout]
+        : ['todo', 'drafts', 'ledger', 'inbox', 'notes'];
+    const idx = order.indexOf(key);
+    if (idx === -1) throw new HttpError(400, 'enum_invalid', `未知卡片：${key}`);
+    const target = direction === 'up' ? idx - 1 : idx + 1;
+    if (target >= 0 && target < order.length) {
+      [order[idx], order[target]] = [order[target], order[idx]];
+      await updateConfig({ layout: order }, null);
+    }
+    return { layout: order };
+  },
+
+  'module.toggle': async (params) => {
+    const moduleKey = String(params.module || '');
+    const enabled = params.enabled === true || params.enabled === 'true';
+    const config = await readConfig();
+    const current = Array.isArray(config.data.disabledModules) ? config.data.disabledModules : [];
+    const next = enabled ? current.filter((m) => m !== moduleKey) : [...new Set([...current, moduleKey])];
+    await updateConfig({ disabledModules: next }, null);
+    return { disabledModules: next, enabled };
+  },
+
+  'focus.log': async (params) => {
+    const minutes = Number(params.minutes) || 25;
+    const ref = String(params.ref || '').trim();
+    const time = new Date().toISOString().slice(11, 16);
+    const line = `- ${time} ${minutes}min${ref ? ' ' + ref : ''}`;
+    const result = await appendToNote('09-计划/专注日志.md', line, '专注日志');
+    return { path: result.path, minutes };
+  },
 };
 
 async function route(req, res) {
@@ -997,6 +1047,21 @@ async function route(req, res) {
   // 未初始化：除 /setup、静态资源、API 外一律引导到配置页
   if (!initialized && !pathname.startsWith('/setup') && !pathname.startsWith('/api')) {
     return redirect(res, '/setup');
+  }
+
+  const disabled = Array.isArray(config.disabledModules) ? config.disabledModules : [];
+  const moduleKey = MODULE_ROUTES[pathname];
+  if (method === 'GET' && moduleKey && disabled.includes(moduleKey)) {
+    return sendHtml(
+      res,
+      layout({
+        config,
+        active: '',
+        title: '模块已关闭',
+        content: '<h1>模块已关闭</h1><p class="muted">可在设置页重新开启。</p>',
+      }),
+      404
+    );
   }
 
   if (method === 'GET') {
@@ -1082,7 +1147,12 @@ async function route(req, res) {
             config,
             active: 'settings',
             title: '设置',
-            content: renderSettings({ config, changes, saved: url.searchParams.get('saved') === '1' }),
+            content: renderSettings({
+              config,
+              changes,
+              saved: url.searchParams.get('saved') === '1',
+              modules: Object.entries(MODULE_ROUTES).map(([pathname, key]) => ({ key, pathname })),
+            }),
           })
         );
       }

@@ -72,10 +72,13 @@ function displayTitle(noteName) {
 
 export function layout({ config, active, title, content, notice }) {
   const name = config?.name || '未命名工作台';
-  const nav = NAV.map(
-    (item) =>
-      `<a class="nav-item${item.key === active ? ' active' : ''}" href="${item.href}">${item.label}</a>`
-  ).join('');
+  const disabled = Array.isArray(config?.disabledModules) ? config.disabledModules : [];
+  const nav = NAV.filter((item) => !disabled.includes(item.key))
+    .map(
+      (item) =>
+        `<a class="nav-item${item.key === active ? ' active' : ''}" href="${item.href}">${item.label}</a>`
+    )
+    .join('');
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -96,6 +99,7 @@ export function layout({ config, active, title, content, notice }) {
     <span>v${escapeHtml(config?.vaultVersion || '0.1.0')} · schema ${escapeHtml(config?.schemaVersion || '1.0.1')}</span>
   </footer>
   <script type="module" src="/assets/app.js"></script>
+  <script type="module" src="/assets/focus.js"></script>
 </body>
 </html>`;
 }
@@ -131,6 +135,14 @@ export function renderSetup({ error } = {}) {
 }
 
 export function renderHome({ config, tasks, drafts, ledgers, inbox, notes, ym, today, summary }) {
+  const layoutOrder =
+    Array.isArray(config?.layout) && config.layout.length
+      ? config.layout
+      : ['todo', 'drafts', 'ledger', 'inbox', 'notes'];
+  const orderOf = (key) => {
+    const i = layoutOrder.indexOf(key);
+    return i === -1 ? 99 : i;
+  };
   const taskRows = tasks.length
     ? tasks
         .map(
@@ -199,7 +211,7 @@ export function renderHome({ config, tasks, drafts, ledgers, inbox, notes, ym, t
   </section>
 
   <section class="grid-2">
-    <div class="card">
+    <div class="card" style="order:${orderOf('todo')}">
       <h2>今日待办</h2>
       <ul class="list">${taskRows}</ul>
       <form class="form inline" data-skill="task.create">
@@ -208,14 +220,14 @@ export function renderHome({ config, tasks, drafts, ledgers, inbox, notes, ym, t
         <button class="primary" type="submit">添加</button>
       </form>
     </div>
-    <div class="card">
+    <div class="card" style="order:${orderOf('drafts')}">
       <h2>当前稿件</h2>
       <ul class="list">${draftRows}</ul>
     </div>
   </section>
 
   <section class="grid-2">
-    <div class="card">
+    <div class="card" style="order:${orderOf('ledger')}">
       <h2>本月经营</h2>
       <p class="big">${money(summary.net)}</p>
       <p class="muted small">本月净额 = 收入 − 支出。共 ${summary.count} 条流水${
@@ -223,7 +235,7 @@ export function renderHome({ config, tasks, drafts, ledgers, inbox, notes, ym, t
       }。</p>
       <a class="link" href="/ledger">查看明细 →</a>
     </div>
-    <div class="card">
+    <div class="card" style="order:${orderOf('inbox')}">
       <h2>收件箱</h2>
       <ul class="list">${inboxRows}</ul>
       <form class="form inline" data-skill="inbox.capture">
@@ -231,7 +243,15 @@ export function renderHome({ config, tasks, drafts, ledgers, inbox, notes, ym, t
         <button class="primary" type="submit">记下</button>
       </form>
     </div>
-    <div class="card">
+    <div class="card" style="order:${orderOf('focus')}">
+      <h2>番茄钟</h2>
+      <p class="big" id="focus-clock">25:00</p>
+      <div class="draft-foot">
+        <button class="primary" id="focus-toggle" type="button">开始专注</button>
+        <span class="muted small" id="focus-state">25 分钟一段，结束后自动记入专注日志</span>
+      </div>
+    </div>
+    <div class="card" style="order:${orderOf('notes')}">
       <h2>常用资料</h2>
       <ul class="list">${noteRows}</ul>
       <p class="muted small">来自 02-知识库，按最近修改排序，最多 5 条。</p>
@@ -518,7 +538,41 @@ export function renderSkills({ skills, favorites = [], error }) {
   </section>`;
 }
 
-export function renderSettings({ config, changes, error, saved }) {
+export function renderSettings({ config, changes, modules = [], error, saved }) {
+  const CARD_LABELS = {
+    todo: '今日待办',
+    drafts: '当前稿件',
+    ledger: '本月经营',
+    inbox: '收件箱',
+    notes: '常用资料',
+  };
+  const layoutOrder =
+    Array.isArray(config.layout) && config.layout.length ? config.layout : Object.keys(CARD_LABELS);
+  const layoutRows = layoutOrder
+    .map(
+      (key, i) => `<li class="row"><span class="row-main">${escapeHtml(CARD_LABELS[key] || key)}</span>
+        <button class="ghost" data-skill="layout.move" ${paramsAttr({ key, direction: 'up' })} ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button class="ghost" data-skill="layout.move" ${paramsAttr({ key, direction: 'down' })} ${i === layoutOrder.length - 1 ? 'disabled' : ''}>↓</button></li>`
+    )
+    .join('');
+  const MODULE_LABELS = {
+    benchmark: '对标与热点',
+    topics: '选题池',
+    analysis: '拆解与沉淀',
+    assets: '资产库',
+    drafts: '创作',
+    works: '发布与经营',
+    plan: '计划',
+    boards: '画板',
+    ledger: '收支',
+  };
+  const disabledModules = Array.isArray(config.disabledModules) ? config.disabledModules : [];
+  const moduleRows = modules
+    .map(
+      (m) => `<li class="row"><span class="row-main">${escapeHtml(MODULE_LABELS[m.key] || m.key)}</span>
+        <button class="ghost" data-skill="module.toggle" ${paramsAttr({ module: m.key, enabled: disabledModules.includes(m.key) })}>${disabledModules.includes(m.key) ? '开启' : '关闭'}</button></li>`
+    )
+    .join('');
   const changeHtml = changes.length
     ? changes.map((c) => `<li>${escapeHtml(c)}</li>`).join('')
     : '<li class="empty">暂无记录</li>';
@@ -553,6 +607,14 @@ export function renderSettings({ config, changes, error, saved }) {
       </tbody>
     </table></div>
     <p class="muted small">阈值修改属于口径变更，请在 <code>_配置.md</code> 的「变更记录」写明理由后再改文件。</p>
+  </section>
+
+  <section class="card">
+    <h2>首页布局</h2>
+    <ul class="list">${layoutRows}</ul>
+    <h2 style="margin-top:18px">模块开关</h2>
+    <p class="muted small">关闭后导航隐藏、路由返回 404，随时可重新开启。</p>
+    <ul class="list">${moduleRows}</ul>
   </section>
 
   <section class="card">

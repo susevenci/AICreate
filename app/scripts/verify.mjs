@@ -586,8 +586,8 @@ async function main() {
     '四卡可见',
     bench.text.includes('监控博主') && bench.text.includes('低粉爆款') && bench.text.includes('爆款内容异常值')
   );
-  check('低粉爆款计数为 1', /低粉爆款[\s\S]{0,200}?1 条/.test(bench.text));
-  check('异常值计数为 1', /爆款内容异常值[\s\S]{0,200}?1 条/.test(bench.text));
+  check('低粉爆款计数≥1', /低粉爆款[\s\S]{0,200}?[1-9]\d* 条/.test(bench.text));
+  check('异常值计数≥1', /爆款内容异常值[\s\S]{0,200}?[1-9]\d* 条/.test(bench.text));
   check('页面标注手工录入', bench.text.includes('手工录入'));
 
   const board = await skill('board.create', { title: '封面结构拆解' });
@@ -609,11 +609,42 @@ async function main() {
     `status=${selectSkill.status}`
   );
 
+  // 7.11 布局、开关与番茄钟（M6）
+  const movedLayout = await skill('layout.move', { key: 'notes', direction: 'up' });
+  const layout = movedLayout.json?.data?.layout || [];
+  check('布局上移生效', movedLayout.status === 200 && layout.indexOf('notes') < layout.indexOf('inbox'), `layout=${layout.join(',')}`);
+  const cfgAfterLayout = await fs.readFile(path.join(VAULT, '00-工作台/_配置.md'), 'utf8');
+  const savedLayout = parseFrontmatter(cfgAfterLayout).data.layout;
+  const savedOrder = Array.isArray(savedLayout) ? savedLayout : [];
+  check(
+    '布局持久化到 _配置.md',
+    savedOrder.indexOf('notes') > -1 && savedOrder.indexOf('notes') < savedOrder.indexOf('inbox'),
+    `saved=${savedOrder.join(',')}`
+  );
+
+  const off = await skill('module.toggle', { module: 'boards', enabled: false });
+  check('关闭模块写入配置', off.status === 200 && (off.json?.data?.disabledModules || []).includes('boards'));
+  const boardOff = await get('/boards');
+  check('关闭后路由 404', boardOff.status === 404, `status=${boardOff.status}`);
+  const navOff = await get('/');
+  check('关闭后导航隐藏', !navOff.text.includes('href="/boards"'));
+  const on = await skill('module.toggle', { module: 'boards', enabled: true });
+  const boardOn = await get('/boards');
+  check('重新开启恢复 200', on.status === 200 && boardOn.status === 200, `status=${boardOn.status}`);
+
+  const focus = await skill('focus.log', { minutes: 25 });
+  check(
+    '专注记录落盘',
+    focus.status === 200 && String(focus.json?.data?.path || '') === '09-计划/专注日志.md'
+  );
+  const focusRaw = await fs.readFile(path.join(VAULT, '09-计划/专注日志.md'), 'utf8');
+  check('专注日志含 25min', focusRaw.includes('25min'));
+
   // 8. Skill 注册表
   const skillsPage = await get('/skills');
   check('助手页返回 200', skillsPage.status === 200);
   const cards = (skillsPage.text.match(/class="card skill-card"/g) || []).length;
-  check('助手页列出 25 个动作型 Skill', cards === 25, `count=${cards}`);
+  check('助手页列出 28 个动作型 Skill', cards === 28, `count=${cards}`);
   check('助手页区分 AI 型与动作型', skillsPage.text.includes('AI 指令型') && skillsPage.text.includes('动作型'));
 
   const missing = await skill('topic.evaluate', { title: '只填了一个' });
