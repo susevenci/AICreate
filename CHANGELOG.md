@@ -3,6 +3,20 @@
 版本号与里程碑对应：M0 = v0.1.0，M1 = v0.2.0，依次递增，M6 收口为 v0.7.0，M7 完成后为 v1.0.0。
 每个版本发布前必须满足：`node app/scripts/verify.mjs` 全绿 + 浏览器验收 + 重启后数据留存。
 
+## [v1.0.1] - 2026-10-22
+
+### 重构
+
+- `app/lib/views.mjs` 拆为 `app/lib/views/` 目录：`shared`（布局/助手）+ `home` / `content` / `review` / `tools`，入口保持 barrel 导出，`server.mjs` 引用不变
+
+### 新增
+
+- `preset.free`：设置页一键切换免费版 / 完整版（写 `disabledModules` 并记变更）
+
+### 验收
+
+- 端到端断言 128 项全通过
+
 ## [v1.0.0] - 2026-10-22
 
 ### 里程碑

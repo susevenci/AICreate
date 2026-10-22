@@ -640,6 +640,17 @@ async function main() {
   const focusRaw = await fs.readFile(path.join(VAULT, '09-计划/专注日志.md'), 'utf8');
   check('专注日志含 25min', focusRaw.includes('25min'));
 
+  const freePreset = await skill('preset.free', { mode: 'free' });
+  const benchInFree = await get('/benchmark');
+  check(
+    '免费版预设生效',
+    freePreset.status === 200 && benchInFree.status === 404 && !benchInFree.text.includes('手工录入'),
+    `status=${benchInFree.status}`
+  );
+  const fullPreset = await skill('preset.free', { mode: 'full' });
+  const benchInFull = await get('/benchmark');
+  check('恢复完整版', fullPreset.status === 200 && benchInFull.status === 200, `status=${benchInFull.status}`);
+
   // 7.12 查询缓存（M7）
   const { listByType: listCached, createNote: createCached } = await import('../lib/vault.mjs');
   const snapA = await listCached('task');
@@ -664,7 +675,7 @@ async function main() {
   const skillsPage = await get('/skills');
   check('助手页返回 200', skillsPage.status === 200);
   const cards = (skillsPage.text.match(/class="card skill-card"/g) || []).length;
-  check('助手页列出 28 个动作型 Skill', cards === 28, `count=${cards}`);
+  check('助手页列出 29 个动作型 Skill', cards === 29, `count=${cards}`);
   check('助手页区分 AI 型与动作型', skillsPage.text.includes('AI 指令型') && skillsPage.text.includes('动作型'));
 
   const missing = await skill('topic.evaluate', { title: '只填了一个' });

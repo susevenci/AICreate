@@ -29,7 +29,7 @@ node server.mjs
 node app/scripts/verify.mjs
 ```
 
-脚本用真实 HTTP 驱动全部入口，覆盖 126 项断言。
+脚本用真实 HTTP 驱动全部入口，覆盖 128 项断言。
 
 ## 目录
 
@@ -40,9 +40,14 @@ app/                     服务端与前端（零依赖）
   lib/markdown.mjs       Markdown 渲染（只读镜像用）
   lib/vault.mjs          数据访问层：读取、校验、写入、软删除
   lib/skills.mjs         Skill 注册表与 prompt 渲染
-  lib/views.mjs          HTML 渲染
-  web/                   两个静态资源：styles.css / app.js
-  skills/                12 个内置 Skill（随产品发布，空库也能初始化）
+  lib/views.mjs          视图入口（barrel），实现在 lib/views/ 下按页面分组
+  lib/views/shared.mjs   布局、导航、通用组件与格式化助手
+  lib/views/home.mjs     首页
+  lib/views/content.mjs  选题 / 稿件 / 拆解 / 资产
+  lib/views/review.mjs   收支 / 作品
+  lib/views/tools.mjs    助手 / 计划 / 对标 / 画板 / 设置
+  web/                   三个静态资源：styles.css / app.js / focus.js
+  skills/                42 个内置 Skill（29 动作型 + 13 AI 型，随产品发布）
   scripts/verify.mjs     端到端验收
 
 vault/                   Markdown 真相源，可直接用 Obsidian 打开
@@ -77,7 +82,7 @@ vault/                   Markdown 真相源，可直接用 Obsidian 打开
 
 ## M0-M7 范围（全部完成）
 
-已实现：首页（布局可调、番茄钟）、对标与热点、选题池、拆解与沉淀、资产库、创作列表与详情、发布与经营、计划、画板、收支，以及全部 Dataview 视图；41 个 Skill（28 动作型 + 13 AI 型）；模块开关与 60 秒查询缓存。
+已实现：首页（布局可调、番茄钟）、对标与热点、选题池、拆解与沉淀、资产库、创作列表与详情、发布与经营、计划、画板、收支，以及全部 Dataview 视图；42 个 Skill（29 动作型 + 13 AI 型）；模块开关、免费版预设与 60 秒查询缓存。
 
 未实现（明确不做）：自动抓取与定时更新。原因：平台反爬与合规不确定，违反「最低可用路径 ≤ L1」，详见 `docs/M7-演进说明.md`。
 

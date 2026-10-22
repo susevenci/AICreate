@@ -1023,6 +1023,14 @@ const ACTIONS = {
     return { disabledModules: next, enabled };
   },
 
+  'preset.free': async (params) => {
+    const mode = String(params.mode || 'free');
+    const FREE_DISABLED = ['benchmark', 'analysis', 'assets', 'works', 'boards', 'ledger', 'plan'];
+    const next = mode === 'full' ? [] : FREE_DISABLED;
+    await updateConfig({ disabledModules: next }, `2026-10-22 | 人工 | 切换${mode === 'full' ? '完整版' : '免费版'}`);
+    return { disabledModules: next, mode };
+  },
+
   'focus.log': async (params) => {
     const minutes = Number(params.minutes) || 25;
     const ref = String(params.ref || '').trim();
