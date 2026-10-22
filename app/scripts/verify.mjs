@@ -542,11 +542,78 @@ async function main() {
     `status=${breakdown.status}`
   );
 
+  // 7.10 对标与画板（M5）
+  const blogger = await skill('blogger.create', {
+    name: '封面研究博主',
+    platform: '小红书',
+    followers: 1000,
+    baseline: 1000,
+  });
+  check(
+    '博主录入成功',
+    blogger.status === 200 && String(blogger.json?.data?.path || '').startsWith('03-对标/博主/'),
+    `path=${blogger.json?.data?.path}`
+  );
+  const badBlogger = await skill('blogger.create', { name: '缺粉丝', platform: '小红书' });
+  check('缺粉丝数被拒绝', badBlogger.status === 400, `status=${badBlogger.status}`);
+
+  const viral = await skill('source.create', {
+    title: '对标爆款A',
+    platform: '小红书',
+    followers: 1000,
+    baseline: 1000,
+    views: 5000,
+    likes: 300,
+    comments: 60,
+    shares: 40,
+  });
+  check('对标作品录入成功', viral.status === 200, `status=${viral.status}`);
+  const normal = await skill('source.create', {
+    title: '对标普通B',
+    platform: '小红书',
+    followers: 80000,
+    baseline: 20000,
+    views: 1000,
+    likes: 10,
+    comments: 2,
+    shares: 1,
+  });
+  check('普通作品录入成功', normal.status === 200, `status=${normal.status}`);
+
+  const bench = await get('/benchmark');
+  check('对标页 200', bench.status === 200);
+  check(
+    '四卡可见',
+    bench.text.includes('监控博主') && bench.text.includes('低粉爆款') && bench.text.includes('爆款内容异常值')
+  );
+  check('低粉爆款计数为 1', /低粉爆款[\s\S]{0,200}?1 条/.test(bench.text));
+  check('异常值计数为 1', /爆款内容异常值[\s\S]{0,200}?1 条/.test(bench.text));
+  check('页面标注手工录入', bench.text.includes('手工录入'));
+
+  const board = await skill('board.create', { title: '封面结构拆解' });
+  check(
+    '画板创建成功',
+    board.status === 200 && String(board.json?.data?.path || '').startsWith('11-画板/'),
+    `path=${board.json?.data?.path}`
+  );
+  const boardsPage = await get('/boards');
+  check('画板页 200 且含画板名', boardsPage.status === 200 && boardsPage.text.includes('封面结构拆解'));
+
+  const selectSkill = await skill('benchmark.select', {
+    signal: '低粉爆款 1 条，播放 5000',
+    myPosition: '做小红书图文的个人创作者',
+  });
+  check(
+    '对标判断 Skill 渲染',
+    selectSkill.status === 200 && String(selectSkill.json?.data?.prompt).includes('低粉爆款'),
+    `status=${selectSkill.status}`
+  );
+
   // 8. Skill 注册表
   const skillsPage = await get('/skills');
   check('助手页返回 200', skillsPage.status === 200);
   const cards = (skillsPage.text.match(/class="card skill-card"/g) || []).length;
-  check('助手页列出 22 个动作型 Skill', cards === 22, `count=${cards}`);
+  check('助手页列出 25 个动作型 Skill', cards === 25, `count=${cards}`);
   check('助手页区分 AI 型与动作型', skillsPage.text.includes('AI 指令型') && skillsPage.text.includes('动作型'));
 
   const missing = await skill('topic.evaluate', { title: '只填了一个' });

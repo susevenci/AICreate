@@ -1,6 +1,6 @@
 ---
 type: schema
-version: 1.2.0
+version: 1.3.0
 updatedAt: 2026-10-22
 ---
 
@@ -41,7 +41,7 @@ updatedAt: 2026-10-22
 ## 3. 类型枚举
 
 ```
-config | schema | page | topic | draft | ledger | task | inbox | note | analysis | asset | source | skill
+config | schema | page | topic | draft | ledger | task | inbox | note | analysis | asset | source | work | metric | blogger | board | skill
 ```
 
 M0 实现前 9 类；`page` 用于视图层笔记（只放查询），`note` 用于 `02-知识库/` 的长期笔记，`skill` 用于 Skill 元数据索引（主体在 `app/skills/`）。
@@ -216,6 +216,8 @@ M0 实现前 9 类；`page` 用于视图层笔记（只放查询），`note` 用
 | platform | string | 是 | 平台名 |
 | blogger | link | 否 | 所属博主 |
 | publishedAt | date | 否 | 发布日期 |
+| followers | number | 否 | 博主粉丝数快照，用于低粉爆款判定 |
+| baseline | number | 否 | 该博主互动基线，用于异常值判定 |
 | views / likes / comments / shares | number | 否 | 互动数据 |
 | rawPath | string | 否 | 正文文件路径或链接 |
 | sourceLevel | enum | 是 | `L0`（手动）/ `L1`（后台导出），M1-M5 不允许更高等级 |
@@ -248,6 +250,29 @@ M0 实现前 9 类；`page` 用于视图层笔记（只放查询），`note` 用
 | createdAt | date | 是 | — |
 
 **口径铁律**：`deals` 是记录数，不是金额；月度成交按条数统计，不去重、不推算。
+
+### 4.14 blogger（`03-对标/博主/`）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| type | string | 是 | `blogger` |
+| platform | string | 是 | 平台名 |
+| followers | number | 是 | 粉丝数（L0 手工录入） |
+| baseline | number | 否 | 互动基线 |
+| fit | enum | 否 | `fit` / `unfit` / `watch` |
+| fitReason | string | 否 | 判断理由，fit 非空时必填 |
+| createdAt | date | 是 | — |
+
+### 4.15 board（`11-画板/`）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| type | string | 是 | `board` |
+| title | string | 是 | 画板名 |
+| linkedDraft | link | 否 | 关联稿件 |
+| createdAt | date | 是 | — |
+
+Web 端只做索引与新建占位，编辑仍在 Obsidian 的 Excalidraw 中完成。
 
 ---
 

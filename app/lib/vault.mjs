@@ -28,6 +28,8 @@ export const DIRS = {
   analysis: '05-拆解',
   asset: '06-资产',
   source: '03-对标/作品',
+  blogger: '03-对标/博主',
+  board: '11-画板',
   work: '08-作品/作品',
   metric: '08-作品/指标',
 };
@@ -50,6 +52,8 @@ const NAME_PREFIX = {
   analysis: '拆解',
   asset: '资产',
   source: '对标',
+  blogger: '博主',
+  board: '画板',
   work: '作品',
   metric: '指标',
 };
@@ -70,6 +74,8 @@ export const TYPES = [
   'source',
   'work',
   'metric',
+  'blogger',
+  'board',
   'skill',
 ];
 
@@ -87,6 +93,7 @@ export const ENUMS = {
   'asset.assetType': ['angle', 'structure', 'opening', 'title'],
   'source.sourceLevel': ['L0', 'L1'],
   'metric.source': ['manual', 'csv'],
+  'blogger.fit': ['fit', 'unfit', 'watch'],
 };
 
 /** 必填字段（_schema.md 第 4 节） */
@@ -102,6 +109,8 @@ export const REQUIRED = {
   source: ['type', 'platform', 'sourceLevel', 'createdAt'],
   work: ['type', 'draft', 'publishDate', 'platforms', 'createdAt'],
   metric: ['type', 'work', 'date', 'source', 'createdAt'],
+  blogger: ['type', 'platform', 'followers', 'createdAt'],
+  board: ['type', 'title', 'createdAt'],
 };
 
 // ---------------------------------------------------------------- 基础工具

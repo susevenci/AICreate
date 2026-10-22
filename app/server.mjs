@@ -19,6 +19,7 @@ import {
   stamp,
   listByType,
   listRecentFiles,
+  listFiles,
   readNote,
   trashNote,
   ASSET_DIRS,
@@ -48,6 +49,8 @@ import {
   renderAssets,
   renderWorks,
   renderPlan,
+  renderBenchmark,
+  renderBoards,
   renderSkills,
   renderSettings,
   parseChanges,
@@ -141,6 +144,47 @@ async function loadWorksPage(query) {
     skipped: Number(query.get('skipped') || 0),
   };
   return { works, metrics, ym, summary: worksSummary(works, metrics, ym), report };
+}
+
+function engagementOf(note) {
+  const views = Number(note.data.views) || 0;
+  const actions =
+    (Number(note.data.likes) || 0) +
+    (Number(note.data.comments) || 0) +
+    (Number(note.data.shares) || 0);
+  return views > 0 ? actions / views : 0;
+}
+
+async function loadBenchmarkPage(config) {
+  const [bloggers, sources] = await Promise.all([listByType('blogger'), listByType('source')]);
+  const boundary = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const counts = {
+    bloggers: bloggers.length,
+    lowFan: sources.filter(
+      (s) =>
+        (Number(s.data.followers) || 0) < Number(config.lowFanThreshold) &&
+        engagementOf(s) > Number(config.engagementThreshold)
+    ).length,
+    outlier: sources.filter(
+      (s) => (Number(s.data.views) || 0) > (Number(s.data.baseline) || 0) * Number(config.outlierMultiplier)
+    ).length,
+    recent: sources.filter((s) => String(s.data.publishedAt || '') >= boundary).length,
+  };
+  return {
+    bloggers,
+    sources,
+    counts,
+    thresholds: {
+      lowFan: config.lowFanThreshold,
+      engagement: config.engagementThreshold,
+      outlier: config.outlierMultiplier,
+    },
+  };
+}
+
+async function loadBoardsPage() {
+  const files = await listFiles('11-画板');
+  return { boards: files.map((f) => ({ path: f, name: path.basename(f).replace(/\.md$/, '') })) };
 }
 
 // ---------------------------------------------------------------- HTTP 工具
@@ -876,6 +920,67 @@ const ACTIONS = {
     await updateConfig({ favorites: next }, null);
     return { favorites: next, active };
   },
+
+  'blogger.create': async (params) => {
+    const followers = Number(params.followers);
+    if (!Number.isFinite(followers)) throw new HttpError(400, 'field_required', '粉丝数必须是数字');
+    const fit = String(params.fit || '').trim();
+    const data = {
+      type: 'blogger',
+      platform: String(params.platform || '').trim(),
+      followers,
+      baseline: Number(params.baseline) || 0,
+      fit: fit || null,
+      fitReason: String(params.fitReason || '').trim(),
+      createdAt: today(),
+    };
+    const { ok: valid, errors } = validate('blogger', data);
+    if (!valid) throw new HttpError(400, 'validation_failed', '字段校验未通过', errors);
+    const title = String(params.name || '').trim() || `${data.platform}-博主`;
+    const created = await createNote({ type: 'blogger', title, data, body: `# ${title}\n\n## 判断\n\n` });
+    return { path: created.path };
+  },
+
+  'source.create': async (params) => {
+    const data = {
+      type: 'source',
+      platform: String(params.platform || '').trim(),
+      blogger: String(params.blogger || '').trim(),
+      publishedAt: String(params.publishedAt || today()).trim(),
+      followers: Number(params.followers) || 0,
+      baseline: Number(params.baseline) || 0,
+      views: Number(params.views) || 0,
+      likes: Number(params.likes) || 0,
+      comments: Number(params.comments) || 0,
+      shares: Number(params.shares) || 0,
+      rawPath: '',
+      sourceLevel: 'L0',
+      createdAt: today(),
+    };
+    const { ok: valid, errors } = validate('source', data);
+    if (!valid) throw new HttpError(400, 'validation_failed', '字段校验未通过', errors);
+    const title = String(params.title || '').trim() || '对标作品';
+    const created = await createNote({ type: 'source', title, data, body: `# ${title}\n\n## 摘录\n\n` });
+    return { path: created.path };
+  },
+
+  'board.create': async (params) => {
+    const title = String(params.title || '').trim();
+    if (!title) throw new HttpError(400, 'field_required', '画板名不能为空');
+    const data = {
+      type: 'board',
+      title,
+      linkedDraft: String(params.linkedDraft || '').trim(),
+      createdAt: today(),
+    };
+    const created = await createNote({
+      type: 'board',
+      title,
+      data,
+      body: `# ${title}\n\n> 在 Obsidian 中用 Excalidraw 打开本笔记即可开始绘制。\n`,
+    });
+    return { path: created.path };
+  },
 };
 
 async function route(req, res) {
@@ -956,6 +1061,14 @@ async function route(req, res) {
       case '/plan': {
         const data = await loadPlanPage();
         return sendHtml(res, layout({ config, active: 'plan', title: '计划', content: renderPlan(data) }));
+      }
+      case '/benchmark': {
+        const data = await loadBenchmarkPage(config);
+        return sendHtml(res, layout({ config, active: 'benchmark', title: '对标与热点', content: renderBenchmark(data) }));
+      }
+      case '/boards': {
+        const data = await loadBoardsPage();
+        return sendHtml(res, layout({ config, active: 'boards', title: '画板', content: renderBoards(data) }));
       }
       case '/skills': {
         const skills = await listSkills();

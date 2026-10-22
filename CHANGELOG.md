@@ -3,6 +3,23 @@
 版本号与里程碑对应：M0 = v0.1.0，M1 = v0.2.0，依次递增，M6 收口为 v0.7.0，M7 完成后为 v1.0.0。
 每个版本发布前必须满足：`node app/scripts/verify.mjs` 全绿 + 浏览器验收 + 重启后数据留存。
 
+## [v0.6.0] - 2026-10-22
+
+### 里程碑
+
+M5 对标与画板。
+
+### 新增
+
+- 契约：`blogger` / `board` 两类实体，schema 1.3.0；`source` 补 followers / baseline
+- 页面 `/benchmark`：四张计数卡（监控博主 / 低粉爆款 / 异常值 / 近3天）+ 博主与作品录入 + 明细表
+- 页面 `/boards`：画板索引与新建（绘制仍回 Obsidian Excalidraw）
+- Skill：`blogger.create`、`source.create`、`board.create`、`blogger.analyze`、`benchmark.select`
+
+### 验收
+
+- 端到端断言 116 项全通过（含阈值口径、手工录入标注、画板落盘）
+
 ## [v0.5.0] - 2026-10-22
 
 ### 里程碑

@@ -9,6 +9,7 @@ import { escapeHtml, renderMarkdown, extractSection } from './markdown.mjs';
 
 const NAV = [
   { href: '/', label: '首页', key: 'home' },
+  { href: '/benchmark', label: '对标与热点', key: 'benchmark' },
   { href: '/topics', label: '选题池', key: 'topics' },
   { href: '/analysis', label: '拆解与沉淀', key: 'analysis' },
   { href: '/assets', label: '资产库', key: 'assets' },
@@ -16,6 +17,7 @@ const NAV = [
   { href: '/ledger', label: '收支', key: 'ledger' },
   { href: '/works', label: '发布与经营', key: 'works' },
   { href: '/plan', label: '计划', key: 'plan' },
+  { href: '/boards', label: '画板', key: 'boards' },
   { href: '/skills', label: '常用助手', key: 'skills' },
   { href: '/settings', label: '设置', key: 'settings' },
 ];
@@ -581,6 +583,87 @@ export function parseChanges(body) {
 }
 
 export { renderMarkdown };
+
+/* ---------------------------------------------------------------- 对标与画板（M5） */
+
+export function renderBenchmark({ bloggers, sources, counts, thresholds }) {
+  const sourceRows = sources.length
+    ? sources
+        .map(
+          (s) => `<tr><td>${escapeHtml(displayTitle(s.name))}</td>
+            <td>${escapeHtml(s.data.platform || '—')}</td>
+            <td class="num">${s.data.followers ?? 0}</td>
+            <td class="num">${s.data.views ?? 0}</td>
+            <td class="num">${s.data.baseline ?? 0}</td>
+            <td>${escapeHtml(String(s.data.publishedAt || '—'))}</td>
+            <td>${escapeHtml(s.data.sourceLevel || 'L0')}</td></tr>`
+        )
+        .join('')
+    : '<tr><td colspan="7" class="empty">暂无对标作品。下方录入第一条。</td></tr>';
+
+  return `
+  <section class="hero"><div><h1>对标与热点</h1><p class="muted">当前为手工录入（L0），未接入抓取。互动突出只是研究线索，还要判断是否适合自己。</p></div></section>
+  <section class="stats">
+    ${statCard('监控博主', counts.bloggers + ' 位', 'blogger 笔记数')}
+    ${statCard('低粉爆款', counts.lowFan + ' 条', `粉丝 < ${thresholds.lowFan} 且互动率 > ${thresholds.engagement}`)}
+    ${statCard('爆款内容异常值', counts.outlier + ' 条', `播放 > 基线 × ${thresholds.outlier}`)}
+    ${statCard('近 3 天更新', counts.recent + ' 条', '按 publishedAt 筛选')}
+  </section>
+  <section class="grid-2">
+    <div class="card"><h2>添加监控博主</h2>
+      <form class="form grid-form" data-skill="blogger.create">
+        <label>博主名 <input name="name" required placeholder="例如：某封面博主" /></label>
+        <label>平台 <input name="platform" required placeholder="小红书" /></label>
+        <label>粉丝数 <input name="followers" type="number" required min="0" /></label>
+        <label>互动基线 <input name="baseline" type="number" min="0" placeholder="可留空" /></label>
+        <label>判断 <select name="fit"><option value="">待观察</option><option value="fit">适合我</option><option value="unfit">不适合</option></select></label>
+        <div class="form-actions"><button class="primary" type="submit">添加</button></div>
+      </form>
+    </div>
+    <div class="card"><h2>录入对标作品</h2>
+      <form class="form grid-form" data-skill="source.create">
+        <label>标题 <input name="title" required placeholder="作品标题" /></label>
+        <label>平台 <input name="platform" required placeholder="小红书" /></label>
+        <label>粉丝快照 <input name="followers" type="number" min="0" /></label>
+        <label>基线 <input name="baseline" type="number" min="0" /></label>
+        <label>播放 <input name="views" type="number" min="0" /></label>
+        <label>点赞 <input name="likes" type="number" min="0" /></label>
+        <label>评论 <input name="comments" type="number" min="0" /></label>
+        <label>分享 <input name="shares" type="number" min="0" /></label>
+        <div class="form-actions"><button class="primary" type="submit">录入</button></div>
+      </form>
+    </div>
+  </section>
+  <section class="card">
+    <h2>对标作品</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>作品</th><th>平台</th><th>粉丝</th><th>播放</th><th>基线</th><th>发布</th><th>等级</th></tr></thead>
+      <tbody>${sourceRows}</tbody>
+    </table></div>
+  </section>`;
+}
+
+export function renderBoards({ boards }) {
+  const rows = boards.length
+    ? boards
+        .map(
+          (b) => `<li class="row"><span class="row-main">${escapeHtml(b.name)}</span>
+            <span class="muted small">${escapeHtml(b.path)}</span></li>`
+        )
+        .join('')
+    : '<li class="empty">还没有画板。新建一个后到 Obsidian 里绘制。</li>';
+
+  return `
+  <section class="hero"><div><h1>画板</h1><p class="muted">Web 端只做索引与新建；绘制在 Obsidian 的 Excalidraw 中完成。</p></div></section>
+  <section class="card">
+    <h2>新建画板</h2>
+    <form class="form inline" data-skill="board.create">
+      <input name="title" placeholder="画板名，例如：封面结构拆解" required />
+      <button class="primary" type="submit">新建</button>
+    </form>
+  </section>
+  <section class="card"><h2>历史画板 <span class="count">${boards.length}</span></h2><ul class="list">${rows}</ul></section>`;
+}
 
 /* ---------------------------------------------------------------- 计划（M4） */
 
