@@ -481,9 +481,11 @@ async function main() {
     csv: `work,date,platform,views,inquiries,deals\n作品-跨平台测试作品,${day},公众号,1200,2,1\n作品-跨平台测试作品,,公众号,100,0,0`,
   });
   check(
-    'CSV 导入新建一行、跳过一行',
-    imported.status === 200 && imported.json?.data?.created === 1 && imported.json?.data?.skipped === 1,
-    `created=${imported.json?.data?.created} skipped=${imported.json?.data?.skipped}`
+    'CSV 导入写入一行、跳过一行',
+    imported.status === 200 &&
+      (imported.json?.data?.created || 0) + (imported.json?.data?.updated || 0) === 1 &&
+      imported.json?.data?.skipped === 1,
+    `created=${imported.json?.data?.created} updated=${imported.json?.data?.updated} skipped=${imported.json?.data?.skipped}`
   );
   const importedPage = await get('/works?imported=1&created=1&updated=0&skipped=1');
   check('导入报告可见', importedPage.status === 200 && importedPage.text.includes('导入完成'));
@@ -496,11 +498,55 @@ async function main() {
     `status=${review.status}`
   );
 
+  // 7.9 计划与收藏（M4）
+  const planPage = await get('/plan');
+  check('计划页 200 且含待安排', planPage.status === 200 && planPage.text.includes('待安排'));
+
+  const floating = await skill('task.create', { title: '待安排测试任务' });
+  const floatingPath = floating.json?.data?.path;
+  check('无日期任务创建成功', floating.status === 200, `status=${floating.status}`);
+
+  const scheduled = await skill('task.reschedule', { path: floatingPath, date: day });
+  check('安排任务写入日期', scheduled.status === 200 && scheduled.json?.data?.date === day, `date=${scheduled.json?.data?.date}`);
+
+  const moved = await skill('task.reschedule', { path: floatingPath, date: '2026-12-01' });
+  check(
+    '改期保留原计划日',
+    moved.status === 200 && moved.json?.data?.originDate === day,
+    `originDate=${moved.json?.data?.originDate}`
+  );
+
+  const notAi = await skill('task.confirmAi', { path: floatingPath });
+  check('非 AI 任务拒绝确认', notAi.status === 400, `status=${notAi.status}`);
+
+  const aiTaskPath = `09-计划/任务/任务-AI建议测试-${day}.md`;
+  await fs.writeFile(
+    path.join(VAULT, aiTaskPath),
+    `---\ntype: task\nstatus: todo\ndate: ${day}\npriority: normal\nestimate: null\noriginDate: null\nref: ""\nsource: ai\ncreatedAt: ${day}\n---\n\n# AI 建议测试\n`,
+    'utf8'
+  );
+  const confirmed = await skill('task.confirmAi', { path: aiTaskPath });
+  check('AI 任务确认后转 manual', confirmed.status === 200 && confirmed.json?.data?.source === 'manual');
+
+  const fav = await skill('skill.favorite', { id: 'plan.breakdown', active: true });
+  check('收藏写入配置', fav.status === 200 && (fav.json?.data?.favorites || []).includes('plan.breakdown'));
+  const cfgRaw = await fs.readFile(path.join(VAULT, '00-工作台/_配置.md'), 'utf8');
+  check('收藏持久化到 _配置.md', cfgRaw.includes('favorites:'));
+  const unfav = await skill('skill.favorite', { id: 'plan.breakdown', active: false });
+  check('取消收藏生效', !(unfav.json?.data?.favorites || []).includes('plan.breakdown'));
+
+  const breakdown = await skill('plan.breakdown', { goal: '本周写完三篇', hours: 8 });
+  check(
+    '目标拆解 Skill 渲染',
+    breakdown.status === 200 && String(breakdown.json?.data?.prompt).includes('本周写完三篇'),
+    `status=${breakdown.status}`
+  );
+
   // 8. Skill 注册表
   const skillsPage = await get('/skills');
   check('助手页返回 200', skillsPage.status === 200);
   const cards = (skillsPage.text.match(/class="card skill-card"/g) || []).length;
-  check('助手页列出 19 个动作型 Skill', cards === 19, `count=${cards}`);
+  check('助手页列出 22 个动作型 Skill', cards === 22, `count=${cards}`);
   check('助手页区分 AI 型与动作型', skillsPage.text.includes('AI 指令型') && skillsPage.text.includes('动作型'));
 
   const missing = await skill('topic.evaluate', { title: '只填了一个' });

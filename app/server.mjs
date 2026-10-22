@@ -47,6 +47,7 @@ import {
   renderAnalysis,
   renderAssets,
   renderWorks,
+  renderPlan,
   renderSkills,
   renderSettings,
   parseChanges,
@@ -114,6 +115,20 @@ async function loadDraftDetail(name) {
   const note = await readNote(relPath);
   const versions = await listSnapshots(relPath);
   return { draft: note, versions };
+}
+
+async function loadPlanPage() {
+  const tasks = await listByType('task');
+  const day = today();
+  return {
+    tasks,
+    today: day,
+    todayTasks: tasks.filter((t) => t.data.date === day && t.data.status !== 'done'),
+    unscheduled: tasks.filter((t) => !t.data.date || t.data.status === 'unscheduled'),
+    overdue: tasks.filter(
+      (t) => t.data.date && t.data.date < day && t.data.status !== 'done' && t.data.status !== 'unscheduled'
+    ),
+  };
 }
 
 async function loadWorksPage(query) {
@@ -831,6 +846,36 @@ const ACTIONS = {
       redirect: `/works?imported=1&created=${created}&updated=${updated}&skipped=${skipped}`,
     };
   },
+
+  'task.reschedule': async (params) => {
+    const note = await readNote(String(params.path || ''));
+    if (note.data.type !== 'task') throw new HttpError(400, 'type_invalid', '不是任务');
+    const date = String(params.date || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(400, 'date_invalid', '日期格式必须为 YYYY-MM-DD');
+    const patch = { date, status: 'todo' };
+    if (note.data.date && note.data.date !== date) patch.originDate = note.data.date;
+    const updated = await updateFields(note.path, patch);
+    return { path: updated.path, date, originDate: updated.data.originDate || null };
+  },
+
+  'task.confirmAi': async (params) => {
+    const note = await readNote(String(params.path || ''));
+    if (note.data.type !== 'task') throw new HttpError(400, 'type_invalid', '不是任务');
+    if (note.data.source !== 'ai') throw new HttpError(400, 'state_invalid', '只有 AI 建议的任务需要确认');
+    const updated = await updateFields(note.path, { source: 'manual' });
+    return { path: updated.path, source: 'manual' };
+  },
+
+  'skill.favorite': async (params) => {
+    const id = String(params.id || '').trim();
+    if (!id) throw new HttpError(400, 'field_required', 'Skill 标识不能为空');
+    const config = await readConfig();
+    const current = Array.isArray(config.data.favorites) ? config.data.favorites : [];
+    const active = params.active === true || params.active === 'true';
+    const next = active ? [...new Set([...current, id])] : current.filter((x) => x !== id);
+    await updateConfig({ favorites: next }, null);
+    return { favorites: next, active };
+  },
 };
 
 async function route(req, res) {
@@ -908,9 +953,13 @@ async function route(req, res) {
         const data = await loadWorksPage(url.searchParams);
         return sendHtml(res, layout({ config, active: 'works', title: '发布与经营', content: renderWorks(data) }));
       }
+      case '/plan': {
+        const data = await loadPlanPage();
+        return sendHtml(res, layout({ config, active: 'plan', title: '计划', content: renderPlan(data) }));
+      }
       case '/skills': {
         const skills = await listSkills();
-        return sendHtml(res, layout({ config, active: 'skills', title: '常用助手', content: renderSkills({ skills }) }));
+        return sendHtml(res, layout({ config, active: 'skills', title: '常用助手', content: renderSkills({ skills, favorites: config.favorites || [] }) }));
       }
       case '/settings': {
         const changes = parseChanges(configNote.body);

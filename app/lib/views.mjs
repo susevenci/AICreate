@@ -15,6 +15,7 @@ const NAV = [
   { href: '/drafts', label: '创作', key: 'drafts' },
   { href: '/ledger', label: '收支', key: 'ledger' },
   { href: '/works', label: '发布与经营', key: 'works' },
+  { href: '/plan', label: '计划', key: 'plan' },
   { href: '/skills', label: '常用助手', key: 'skills' },
   { href: '/settings', label: '设置', key: 'settings' },
 ];
@@ -424,7 +425,7 @@ export function renderLedger({ ledgers, summary, ym, error }) {
   </section>`;
 }
 
-export function renderSkills({ skills, error }) {
+export function renderSkills({ skills, favorites = [], error }) {
   const stageLabels = {
     intake: '整理输入',
     topic: '寻找选题',
@@ -472,6 +473,7 @@ export function renderSkills({ skills, error }) {
           (s) => `<article class="card skill" data-skill="${escapeHtml(s.id)}">
             <div class="skill-head">
               <h2>${escapeHtml(s.name)}</h2>
+              <button class="ghost" data-skill="skill.favorite" ${paramsAttr({ id: s.id, active: !favorites.includes(s.id) })}>${favorites.includes(s.id) ? '取消收藏' : '收藏'}</button>
               <span class="pill">v${escapeHtml(s.version)}</span>
             </div>
             <p class="muted">${escapeHtml(s.subtitle)}</p>
@@ -579,6 +581,43 @@ export function parseChanges(body) {
 }
 
 export { renderMarkdown };
+
+/* ---------------------------------------------------------------- 计划（M4） */
+
+export function renderPlan({ todayTasks, unscheduled, overdue, today }) {
+  const taskRow = (t, withDate) => `<li class="row">
+    <span class="pill ${escapeHtml(t.data.priority || 'normal')}">${escapeHtml(
+      PRIORITY_LABELS[t.data.priority] || t.data.priority || '普通'
+    )}</span>
+    <span class="row-main">${escapeHtml(displayTitle(t.name))}${withDate && t.data.date ? `　<span class="muted small">${escapeHtml(t.data.date)}</span>` : ''}${t.data.originDate ? `　<span class="muted small">原计划 ${escapeHtml(t.data.originDate)}</span>` : ''}${t.data.source === 'ai' ? '　<span class="pill">AI 建议</span>' : ''}</span>
+    ${t.data.source === 'ai' ? `<button class="ghost" data-skill="task.confirmAi" ${paramsAttr({ path: t.path })}>确认</button>` : ''}
+    <button class="ghost" data-skill="task.done" ${paramsAttr({ path: t.path })}>完成</button>
+    <button class="ghost" data-skill="task.reschedule" ${paramsAttr({ path: t.path, date: today })}>排到今天</button>
+  </li>`;
+
+  const list = (items, withDate, empty) =>
+    items.length ? items.map((t) => taskRow(t, withDate)).join('') : `<li class="empty">${empty}</li>`;
+
+  return `
+  <section class="hero"><div><h1>计划</h1><p class="muted">${escapeHtml(today)}　目标拆成任务，AI 建议需确认后才算你的计划。</p></div></section>
+  <section class="card">
+    <h2>加一件事</h2>
+    <form class="form inline" data-skill="task.create">
+      <input name="title" placeholder="要做什么…" required />
+      <input name="date" type="date" value="${escapeHtml(today)}" />
+      <button class="primary" type="submit">添加</button>
+    </form>
+  </section>
+  <section class="grid-2">
+    <div class="card"><h2>今日安排 <span class="count">${todayTasks.length}</span></h2><ul class="list">${list(todayTasks, false, '今天没有安排。')}</ul></div>
+    <div class="card"><h2>待安排 <span class="count">${unscheduled.length}</span></h2><ul class="list">${list(unscheduled, false, '没有待安排的任务。')}</ul></div>
+  </section>
+  <section class="card">
+    <h2>已逾期 <span class="count">${overdue.length}</span></h2>
+    <ul class="list">${list(overdue, true, '没有逾期任务。')}</ul>
+    <p class="muted small">「排到今天」会写入日期；若原有日期不同，会自动记下 originDate 便于追溯。</p>
+  </section>`;
+}
 
 /* ---------------------------------------------------------------- 发布与经营（M3） */
 

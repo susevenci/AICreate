@@ -3,6 +3,23 @@
 版本号与里程碑对应：M0 = v0.1.0，M1 = v0.2.0，依次递增，M6 收口为 v0.7.0，M7 完成后为 v1.0.0。
 每个版本发布前必须满足：`node app/scripts/verify.mjs` 全绿 + 浏览器验收 + 重启后数据留存。
 
+## [v0.5.0] - 2026-10-22
+
+### 里程碑
+
+M4 计划与助手。
+
+### 新增
+
+- 页面 `/plan`：今日安排 / 待安排 / 已逾期，支持新建、排期、改期、完成、确认 AI 建议
+- Skill：`task.reschedule`（含 originDate）、`task.confirmAi`、`skill.favorite`、`plan.breakdown`
+- 助手页收藏：收藏写入 `_配置.md` 的 `favorites`，不写 localStorage
+- Dataview：`vault/00-工作台/计划.md`
+
+### 验收
+
+- 端到端断言 104 项全通过（含改期保留原计划日、非 AI 任务拒绝确认、收藏往返）
+
 ## [v0.4.1] - 2026-10-22
 
 ### 修复
